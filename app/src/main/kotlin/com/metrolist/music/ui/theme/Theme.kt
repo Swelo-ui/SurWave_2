@@ -26,7 +26,7 @@ import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.rememberDynamicColorScheme
 import com.materialkolor.score.Score
 
-val DefaultThemeColor = Color(0xFFED5564)
+val DefaultThemeColor = Color(0xFF7C3AED)
 
 @Composable
 fun MetrolistTheme(
@@ -98,8 +98,8 @@ fun Bitmap.extractGradientColors(): List<Color> {
 
 fun ColorScheme.pureBlack(apply: Boolean) =
     if (apply) copy(
-        surface = Color.Black,
-        background = Color.Black
+        surface = Color(0xFF050508),
+        background = Color(0xFF050508)
     ) else this
 
 val ColorSaver = object : Saver<Color, Int> {
