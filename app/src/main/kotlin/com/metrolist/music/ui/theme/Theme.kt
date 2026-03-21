@@ -28,6 +28,12 @@ import com.materialkolor.score.Score
 
 val DefaultThemeColor = Color(0xFF7C3AED)
 
+// SurWave brand colors
+val SurWavePurple      = Color(0xFF7C3AED)
+val SurWavePurpleLight = Color(0xFFA78BFA)
+val SurWaveOrange      = Color(0xFFF97316)
+val SurWaveBlack       = Color(0xFF050508)
+
 @Composable
 fun MetrolistTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),

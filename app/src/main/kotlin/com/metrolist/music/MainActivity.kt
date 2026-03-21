@@ -565,9 +565,10 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     val lastSeenVersion = dataStore.data.first()[LastSeenVersionKey] ?: ""
                     val currentVersion = BuildConfig.VERSION_NAME
-                    if (lastSeenVersion != currentVersion) {
-                        showChangelog.value = true
-                    }
+                    // SurWave rebranding: disable automatic changelog popup
+                    // if (lastSeenVersion != currentVersion) {
+                    //    showChangelog.value = true
+                    // }
                     dataStore.edit { settings ->
                         settings[LastSeenVersionKey] = currentVersion
                     }

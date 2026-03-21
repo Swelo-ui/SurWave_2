@@ -35,7 +35,8 @@ android {
         targetSdk = 36
         versionCode = 143
         versionName = "13.3.0"
-        resValue("string", "app_name", appNameOverride ?: "SURWAVE")
+        // app_name is defined in metrolist_strings.xml; only override via env var when explicitly set
+        appNameOverride?.let { resValue("string", "app_name", it) }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -117,9 +118,6 @@ android {
                 applicationIdSuffix = ".debug"
             }
             isDebuggable = true
-            if (appNameOverride == null) {
-                resValue("string", "app_name", "Metrolist Debug")
-            }
             signingConfig =
                 if (workflowDebugKeystoreFile != null) {
                     signingConfigs.getByName("workflowDebug")

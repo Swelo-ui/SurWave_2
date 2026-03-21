@@ -75,6 +75,8 @@ class EQProfileRepository @Inject constructor(
                 // Load active profile
                 val activeId = prefs.getString(KEY_ACTIVE_PROFILE_ID, null)
                 _activeProfile.value = loadedProfiles.find { it.id == activeId }
+            } else {
+                seedInitialPresets()
             }
         } catch (e: Exception) {
             println("Error loading EQ profiles: ${e.message}")
@@ -190,5 +192,48 @@ class EQProfileRepository @Inject constructor(
         return _profiles.value
             .filter { it.isCustom }
             .sortedByDescending { it.addedTimestamp }
+    }
+
+    private fun seedInitialPresets() {
+        val frequencies = listOf(25.0, 40.0, 63.0, 100.0, 160.0, 250.0, 400.0, 630.0, 1000.0, 1600.0, 2500.0, 4000.0, 6300.0, 10000.0, 16000.0)
+        
+        fun createProfile(name: String, model: String, gains: List<Double>): SavedEQProfile {
+            val bands = frequencies.zip(gains).map { (freq, gain) ->
+                ParametricEQBand(
+                    frequency = freq,
+                    gain = gain,
+                    q = 1.41,
+                    filterType = FilterType.PK,
+                    enabled = true
+                )
+            }
+            return SavedEQProfile(
+                id = "builtin_${name.lowercase().replace(" ", "_").replace("-", "_")}",
+                name = name,
+                deviceModel = model,
+                bands = bands,
+                preamp = -gains.maxOrNull()!!.coerceAtLeast(0.0), // Prevent clipping
+                isCustom = true, // Show in presets list
+                isActive = false
+            )
+        }
+
+        val presets = listOf(
+            createProfile("Flat Studio", "Reference 15-Band EQ", listOf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)),
+            createProfile("Happy Solo", "Bright & Punchy EQ", listOf(2.0, 3.0, 4.0, 2.0, 0.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 4.0, 3.0, 2.0)),
+            createProfile("Deep Bass Pro", "Enhanced Sub & Mid-Bass EQ", listOf(6.0, 5.5, 4.0, 2.0, 0.0, -1.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 4.0, 3.0)),
+            createProfile("Acoustic Clarity", "Crisp String & Vocal EQ", listOf(1.0, 2.0, 3.0, 2.0, 0.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 4.0, 3.0, 2.0)),
+            createProfile("Cinematic Power", "Immersive Theatre EQ", listOf(5.0, 4.0, 3.0, 2.0, 1.0, 0.0, -1.0, 0.0, 2.0, 3.0, 4.0, 5.0, 6.0, 5.0, 4.0)),
+            createProfile("Vocal Presence", "Podcast & Dialogue EQ", listOf(-1.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0, -1.0, -2.0)),
+            createProfile("Electronic Drive", "EDM & Synth EQ", listOf(5.0, 4.0, 2.0, 0.0, -1.0, -2.0, -1.0, 0.0, 1.0, 3.0, 4.0, 5.0, 4.0, 3.0, 2.0)),
+            createProfile("Rock Stadium", "Live Concert EQ", listOf(3.0, 4.0, 3.0, 1.0, 0.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 4.0, 3.0, 2.0)),
+            createProfile("Lo-Fi Chill", "Warm Vintage EQ", listOf(2.0, 3.0, 4.0, 3.0, 2.0, 1.0, 0.0, -1.0, -2.0, -3.0, -4.0, -3.0, -2.0, -1.0, 0.0)),
+            createProfile("Classical Hall", "Orchestral Sweep EQ", listOf(2.0, 3.0, 2.0, 1.0, 0.0, -1.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 3.0, 2.0, 1.0)),
+            createProfile("R&B Smooth", "Soulful Grooves EQ", listOf(4.0, 5.0, 3.0, 1.0, 0.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0, 3.0, 2.0, 1.0, 0.0))
+        )
+
+        _profiles.value = presets
+        val profilesJson = json.encodeToString<List<SavedEQProfile>>(presets)
+        prefs.edit { putString(KEY_PROFILES, profilesJson) }
     }
 }

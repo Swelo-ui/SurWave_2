@@ -439,4 +439,8 @@ fun NavGraphBuilder.navigationBuilder(
     composable("settings/android_auto") {
         AndroidAutoSettings(navController, scrollBehavior)
     }
+    
+    composable("sur_raag") {
+        SurRaagScreen()
+    }
 }
