@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_tagline">Sur ki duniya, free mein</string>
-    <string name="sur_raag_title">Sur Raag Mode</string>
+    <string name="sur_raag_title">Sur Special</string>
     <string name="sur_find_title">SurFind</string>
     <string name="local_history">Local</string>
     <string name="remote_history">Remote</string>
@@ -520,9 +520,9 @@
     <string name="widget_turntable">Turntable</string>
 
     <!-- Music Recognizer Widget strings -->
-    <string name="widget_recognizer_name">Music Recognizer</string>
+    <string name="widget_recognizer_name">SurRadar</string>
     <string name="widget_recognizer_description">Identify songs playing around you directly from your home screen</string>
-    <string name="widget_recognizer_tap_to_search">Tap to identify song</string>
+    <string name="widget_recognizer_tap_to_search">Tap to start SurRadar</string>
     <string name="widget_recognizer_listening">Listening…</string>
     <string name="widget_recognizer_processing">Identifying…</string>
     <string name="widget_recognizer_no_match">No match found. Try again</string>
@@ -531,7 +531,7 @@
     <string name="widget_recognizer_unknown_song">Unknown song</string>
     <string name="widget_recognizer_unknown_artist">Unknown artist</string>
     <string name="widget_recognizer_mic_desc">Identify song</string>
-    <string name="widget_recognizer_channel_name">Music Recognition</string>
+    <string name="widget_recognizer_channel_name">SurRadar</string>
     <string name="widget_recognizer_channel_desc">Shows a notification while identifying a song from the widget</string>
     <string name="widget_recognizer_notification_text">Recording audio to identify the song…</string>
 
@@ -717,8 +717,8 @@
     <string name="enable_high_refresh_rate_desc">Force the display to run at the highest supported refresh rate (e.g. 120Hz)</string>
 
     <!-- Music Recognition -->
-    <string name="recognize_music">Recognize Music</string>
-    <string name="tap_to_recognize">Tap to recognize</string>
+    <string name="recognize_music">SurRadar</string>
+    <string name="tap_to_recognize">Tap to start SurRadar</string>
     <string name="listening">Listening…</string>
     <string name="processing">Processing…</string>
     <string name="no_match_found">No match found</string>
@@ -729,15 +729,15 @@
     <string name="clear_recognition_history_confirm">Are you sure you want to clear all recognition history?</string>
     <string name="delete_from_history">Delete from history</string>
     <string name="re_listen">Re-listen</string>
-    <string name="play_on_app">Play on Metrolist</string>
-    <string name="qs_tile_music_recognizer">Recognize Music</string>
-    <string name="recognition_notification_channel_name">Music Recognition</string>
+    <string name="play_on_app">Play on SurWave</string>
+    <string name="qs_tile_music_recognizer">SurRadar</string>
+    <string name="recognition_notification_channel_name">SurRadar</string>
     <string name="recognition_notification_channel_desc">Shows a notification while identifying a song from Quick Settings</string>
     <string name="recognition_notification_listening">Listening for music...</string>
     <string name="recognition_notification_processing">Identifying...</string>
     <string name="recognition_notification_no_match">No match found</string>
     <string name="recognition_notification_failed">Recognition failed</string>
-    <string name="listen_on_metrolist">Listen on Metrolist</string>
+    <string name="listen_on_metrolist">Listen on SurWave</string>
 
     <!-- CSV Import Strings -->
     <string name="map_csv_columns">Map CSV Columns</string>

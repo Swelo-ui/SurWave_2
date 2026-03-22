@@ -609,6 +609,7 @@ class MainActivity : ComponentActivity() {
                             Screens.Home.route,
                             Screens.Library.route,
                             Screens.ListenTogether.route,
+                            Screens.SurRaag.route,
                             "settings",
                         )
                     }
@@ -832,6 +833,7 @@ class MainActivity : ComponentActivity() {
                             Screens.Search.route -> R.string.search
                             Screens.Library.route -> R.string.filter_library
                             Screens.ListenTogether.route -> R.string.together
+                            Screens.SurRaag.route -> R.string.sur_raag_title
                             else -> null
                         }
                     }

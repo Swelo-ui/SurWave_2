@@ -347,45 +347,59 @@ private fun ReadyState(onStartRecognition: () -> Unit) {
 @Composable
 private fun ListeningState(onCancel: () -> Unit) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.2f,
+    val wave1 by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
         animationSpec =
             infiniteRepeatable(
-                animation = tween(1000, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse,
+                animation = tween(2000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+                initialStartOffset = androidx.compose.animation.core.StartOffset(0)
             ),
-        label = "scale",
+        label = "wave1",
+    )
+    val wave2 by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(2000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+                initialStartOffset = androidx.compose.animation.core.StartOffset(666)
+            ),
+        label = "wave2",
+    )
+    val wave3 by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(2000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart,
+                initialStartOffset = androidx.compose.animation.core.StartOffset(1333)
+            ),
+        label = "wave3",
     )
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        // Container large enough for scaled animation (200dp * 1.2 = 240dp)
+        // Container large enough for scaled animation
         Box(
             modifier = Modifier.size(260.dp),
             contentAlignment = Alignment.Center,
         ) {
-            // Outer pulsing ring
-            Box(
-                modifier =
-                    Modifier
-                        .size(200.dp)
-                        .scale(scale)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
-            )
-
-            // Inner pulsing ring
-            Box(
-                modifier =
-                    Modifier
-                        .size(180.dp)
-                        .scale(scale * 0.9f)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
-            )
+            listOf(wave1, wave2, wave3).forEach { wave ->
+                Box(
+                    modifier =
+                        Modifier
+                            .size(160.dp)
+                            .scale(1f + (wave * 0.625f))
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.5f * (1f - wave))),
+                )
+            }
 
             // Main button
             Box(
