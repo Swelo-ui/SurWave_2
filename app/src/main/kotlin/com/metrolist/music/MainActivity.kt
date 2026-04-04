@@ -304,6 +304,7 @@ class MainActivity : ComponentActivity() {
         // Explicitly start the service so it becomes an "explicitly started" service.
         // Without this, the service only exists while a client is bound (BIND_AUTO_CREATE).
         // When onStop() releases the binding (e.g. screen off, app backgrounded), Media3's
+<<<<<<< HEAD
         // MediaNotificationManager tries to call startForegroundService() to keep the service
         // alive — but this is blocked on Android 12+ when the app is in the background,
         // causing ForegroundServiceStartNotAllowedException. Starting the service explicitly
@@ -315,7 +316,12 @@ class MainActivity : ComponentActivity() {
             serviceConnection,
             BIND_AUTO_CREATE,
         )
-        isServiceBound = true
+        // MediaNotificationManager tries to keep the service alive, but this is blocked on
+        // Android 12+ when the app is in the background. Using startForegroundService() ensures
+        // the service persists independently of binding state on all Android versions, including
+        // Android 16+ where startService() from background contexts is not allowed.
+        ContextCompat.startForegroundService(this, Intent(this, MusicService::class.java))
+        safeBindService("onStart()")
     }
 
     override fun onStop() {
