@@ -304,7 +304,6 @@ class MainActivity : ComponentActivity() {
         // Explicitly start the service so it becomes an "explicitly started" service.
         // Without this, the service only exists while a client is bound (BIND_AUTO_CREATE).
         // When onStop() releases the binding (e.g. screen off, app backgrounded), Media3's
-<<<<<<< HEAD
         // MediaNotificationManager tries to call startForegroundService() to keep the service
         // alive — but this is blocked on Android 12+ when the app is in the background,
         // causing ForegroundServiceStartNotAllowedException. Starting the service explicitly
