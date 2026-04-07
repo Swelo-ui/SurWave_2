@@ -1750,6 +1750,7 @@ class MusicService :
                 return@launch
             }
 
+<<<<<<< HEAD
             database.query {
                 insert(
                     com.metrolist.music.db.entities.PlaylistSongMap(
@@ -1758,6 +1759,11 @@ class MusicService :
                         position = Int.MAX_VALUE
                     )
                 )
+=======
+            val targetPlaylist = database.playlist(targetPlaylistId).first()
+            if (targetPlaylist != null) {
+                database.addSongsToPlaylist(targetPlaylist, listOf(currentSong.id to null))
+>>>>>>> 4ef332d3 (fix(playlist): ensure songs persist across sync by marking them as inLibrary (#3446))
             }
         }
     }

@@ -1481,17 +1481,16 @@ class SyncUtils @Inject constructor(
 
                     database.withTransaction {
                         database.clearPlaylist(playlistId)
-                        songs.forEachIndexed { idx, song ->
-                            if (database.song(song.id).firstOrNull() == null) {
+                        songs.forEach { song ->
+                            if (database.getSongByIdBlocking(song.id) == null) {
                                 database.insert(song)
                             }
-                            database.insert(
-                                PlaylistSongMap(
-                                    songId = song.id,
-                                    playlistId = playlistId,
-                                    position = idx,
-                                    setVideoId = song.setVideoId
-                                )
+                        }
+                        val playlistEntity = database.playlistBlocking(playlistId)
+                        if (playlistEntity != null) {
+                            database.addSongsToPlaylist(
+                                playlistEntity,
+                                songs.map { it.id to it.setVideoId }
                             )
                         }
                     }
