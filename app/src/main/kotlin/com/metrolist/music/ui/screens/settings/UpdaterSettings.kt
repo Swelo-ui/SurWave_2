@@ -228,14 +228,19 @@ fun UpdaterScreen(
 
             if (showChangelog && changelogContent != null) {
                 Spacer(Modifier.height(12.dp))
-                Text(
-                    text = changelogContent!!,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                )
+                androidx.compose.material3.Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    ),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+                ) {
+                    androidx.compose.foundation.layout.Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        MarkdownText(changelogContent!!)
+                    }
+                }
             }
         }
 
