@@ -143,7 +143,9 @@ import com.metrolist.music.constants.PauseListenHistoryKey
 import com.metrolist.music.constants.PauseSearchHistoryKey
 import com.metrolist.music.constants.PureBlackKey
 import com.metrolist.music.constants.SYSTEM_DEFAULT
+import com.metrolist.music.constants.SelectedCuratedThemeKey
 import com.metrolist.music.constants.SelectedThemeColorKey
+import com.metrolist.music.ui.theme.getCuratedColorScheme
 import com.metrolist.music.constants.SlimNavBarHeight
 import com.metrolist.music.constants.SlimNavBarKey
 import com.metrolist.music.constants.StopMusicOnTaskClearKey
@@ -407,31 +409,32 @@ class MainActivity : ComponentActivity() {
                             if (releaseInfo != null) {
                                 onLatestVersionNameChange(releaseInfo.versionName)
                                 if (hasUpdate && notifEnabled) {
+                                    // Use direct APK URL if available, otherwise open SurWave releases page
                                     val downloadUrl = Updater.getDownloadUrlForCurrentVariant(releaseInfo)
-                                    if (downloadUrl != null) {
-                                        val intent = Intent(Intent.ACTION_VIEW, downloadUrl.toUri())
+                                    val targetUrl = downloadUrl
+                                        ?: "https://github.com/Swelo-ui/SurWave_2/releases/latest"
+                                    val intent = Intent(Intent.ACTION_VIEW, targetUrl.toUri())
 
-                                        val flags =
-                                            PendingIntent.FLAG_UPDATE_CURRENT or
-                                                (PendingIntent.FLAG_IMMUTABLE)
-                                        val pending = PendingIntent.getActivity(this@MainActivity, 1001, intent, flags)
+                                    val flags =
+                                        PendingIntent.FLAG_UPDATE_CURRENT or
+                                            (PendingIntent.FLAG_IMMUTABLE)
+                                    val pending = PendingIntent.getActivity(this@MainActivity, 1001, intent, flags)
 
-                                        val notif =
-                                            NotificationCompat
-                                                .Builder(this@MainActivity, "updates")
-                                                .setSmallIcon(R.drawable.update)
-                                                .setContentTitle(getString(R.string.update_available_title))
-                                                .setContentText(releaseInfo.versionName)
-                                                .setContentIntent(pending)
-                                                .setAutoCancel(true)
-                                                .build()
+                                    val notif =
+                                        NotificationCompat
+                                            .Builder(this@MainActivity, "updates")
+                                            .setSmallIcon(R.drawable.update)
+                                            .setContentTitle(getString(R.string.update_available_title))
+                                            .setContentText(releaseInfo.versionName)
+                                            .setContentIntent(pending)
+                                            .setAutoCancel(true)
+                                            .build()
 
-                                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-                                            ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) ==
-                                            PackageManager.PERMISSION_GRANTED
-                                        ) {
-                                            NotificationManagerCompat.from(this@MainActivity).notify(1001, notif)
-                                        }
+                                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                                        ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) ==
+                                        PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        NotificationManagerCompat.from(this@MainActivity).notify(1001, notif)
                                     }
                                 }
                             }
@@ -494,6 +497,12 @@ class MainActivity : ComponentActivity() {
         val (selectedThemeColorInt) = rememberPreference(SelectedThemeColorKey, defaultValue = DefaultThemeColor.toArgb())
         val selectedThemeColor = Color(selectedThemeColorInt)
 
+        // Curated theme preference — overrides MaterialKolor generation with exact colors
+        val (selectedCuratedThemeKey) = rememberPreference(SelectedCuratedThemeKey, defaultValue = "")
+        val curatedSchemePair = remember(selectedCuratedThemeKey) {
+            getCuratedColorScheme(selectedCuratedThemeKey)
+        }
+
         val showChangelog = rememberSaveable { mutableStateOf(false) }
 
         var themeColor by rememberSaveable(stateSaver = ColorSaver) {
@@ -542,9 +551,12 @@ class MainActivity : ComponentActivity() {
         }
 
         MetrolistTheme(
-            darkTheme = useDarkTheme,
-            pureBlack = pureBlack,
-            themeColor = themeColor,
+            darkTheme           = useDarkTheme,
+            pureBlack           = pureBlack,
+            themeColor          = themeColor,
+            curatedColorScheme  = curatedSchemePair?.let {
+                if (useDarkTheme) it.first else it.second
+            },
         ) {
             BoxWithConstraints(
                 modifier =

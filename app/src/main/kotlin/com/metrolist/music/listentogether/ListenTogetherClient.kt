@@ -26,6 +26,7 @@ import com.metrolist.music.constants.ListenTogetherAutoApproveSuggestionsKey
 import com.metrolist.music.constants.ListenTogetherIsHostKey
 import com.metrolist.music.constants.ListenTogetherRoomCodeKey
 import com.metrolist.music.constants.ListenTogetherServerUrlKey
+import com.metrolist.music.constants.ListenTogetherGuestControlsKey
 import com.metrolist.music.constants.ListenTogetherSessionTimestampKey
 import com.metrolist.music.constants.ListenTogetherSessionTokenKey
 import com.metrolist.music.constants.ListenTogetherUserIdKey
@@ -43,6 +44,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
@@ -208,6 +211,11 @@ sealed class ListenTogetherEvent {
         val code: String,
         val message: String,
     ) : ListenTogetherEvent()
+
+    // Chat events
+    data class ChatReceived(
+        val message: ChatMessagePayload,
+    ) : ListenTogetherEvent()
 }
 
 /**
@@ -262,6 +270,9 @@ class ListenTogetherClient
         private val _role = MutableStateFlow(RoomRole.NONE)
         val role: StateFlow<RoomRole> = _role.asStateFlow()
 
+        private val _guestControlsEnabled = MutableStateFlow(false)
+        val guestControlsEnabled: StateFlow<Boolean> = _guestControlsEnabled.asStateFlow()
+
         private val _userId = MutableStateFlow<String?>(null)
         val userId: StateFlow<String?> = _userId.asStateFlow()
 
@@ -279,6 +290,17 @@ class ListenTogetherClient
         private val _blockedUsernames = MutableStateFlow<Set<String>>(emptySet())
         val blockedUsernames: StateFlow<Set<String>> = _blockedUsernames.asStateFlow()
 
+        private val _chatMessages = MutableStateFlow<List<ChatMessagePayload>>(emptyList())
+        val chatMessages: StateFlow<List<ChatMessagePayload>> = _chatMessages.asStateFlow()
+
+        /**
+         * Bounded set used to deduplicate relay messages (chat + guest actions).
+         * Prevents the sender from seeing their own message twice when the host
+         * rebroadcasts it (Bug 2 fix).
+         * Max 200 entries — trimmed to 150 when full to amortise the clear cost.
+         */
+        private val seenRelayMsgIds = LinkedHashSet<String>(256)
+
         private val _logs = MutableStateFlow<List<LogEntry>>(emptyList())
         val logs: StateFlow<List<LogEntry>> = _logs.asStateFlow()
 
@@ -292,6 +314,7 @@ class ListenTogetherClient
             // Load persisted session info asynchronously after construction to avoid calling log() before flows are initialized
             CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
                 loadPersistedSession()
+                loadGuestControlsPreference()
                 observeNetworkChanges()
             }
         }
@@ -325,6 +348,22 @@ class ListenTogetherClient
                     }
                 } catch (e: Exception) {
                     Timber.tag(TAG).e(e, "Error observing network changes")
+                }
+            }
+        }
+
+        private fun loadGuestControlsPreference() {
+            scope.launch {
+                try {
+                    context.dataStore.data
+                        .map { it[ListenTogetherGuestControlsKey] ?: false }
+                        .distinctUntilChanged()
+                        .collect { enabled ->
+                            _guestControlsEnabled.value = enabled
+                            log(LogLevel.DEBUG, "Guest controls preference updated: $enabled")
+                        }
+                } catch (e: Exception) {
+                    Timber.tag(TAG).e(e, "Error loading guest controls preference")
                 }
             }
         }
@@ -670,6 +709,7 @@ class ListenTogetherClient
             _role.value = RoomRole.NONE
             _userId.value = null
             _pendingJoinRequests.value = emptyList()
+            _chatMessages.value = emptyList()
             _bufferingUsers.value = emptyList()
 
             // Clear from persistent storage
@@ -850,6 +890,38 @@ class ListenTogetherClient
             }
         }
 
+        @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
+        private fun showChatNotification(payload: ChatMessagePayload) {
+            val notifId = payload.userId.hashCode() // Keep updating the same notification for the same user
+
+            val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
+            val pendingIntent = intent?.let {
+                PendingIntent.getActivity(
+                    context,
+                    0,
+                    it,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                )
+            }
+
+            val builder =
+                NotificationCompat
+                    .Builder(context, NOTIFICATION_CHANNEL_ID)
+                    .setSmallIcon(R.drawable.ic_chat)
+                    .setContentTitle(payload.username)
+                    .setContentText(payload.message)
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setAutoCancel(true)
+
+            pendingIntent?.let { builder.setContentIntent(it) }
+
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+                NotificationManagerCompat.from(context).notify(notifId, builder.build())
+            }
+        }
+
         private fun handleDisconnect() {
             pingJob?.cancel()
             pingJob = null
@@ -859,6 +931,7 @@ class ListenTogetherClient
             _connectionState.value = ConnectionState.DISCONNECTED
             _pendingJoinRequests.value = emptyList()
             _bufferingUsers.value = emptyList()
+            _chatMessages.value = emptyList()
 
             // If we have a session, try to reconnect
             if (sessionToken != null && _roomState.value != null) {
@@ -969,6 +1042,9 @@ class ListenTogetherClient
                         // Save session to persistent storage
                         savePersistedSession()
 
+                        // Clear chat messages for new room
+                        _chatMessages.value = emptyList()
+
                         acquireWakeLock() // Keep connection alive while in room
                         log(LogLevel.INFO, "Room created", "Code: ${payload.roomCode}")
                         scope.launch { _events.emit(ListenTogetherEvent.RoomCreated(payload.roomCode, payload.userId)) }
@@ -1030,6 +1106,9 @@ class ListenTogetherClient
 
                         // Save session to persistent storage
                         savePersistedSession()
+
+                        // Clear chat messages for new room
+                        _chatMessages.value = emptyList()
 
                         acquireWakeLock() // Keep connection alive while in room
                         log(LogLevel.INFO, "Joined room", "Code: ${payload.roomCode}")
@@ -1101,6 +1180,48 @@ class ListenTogetherClient
 
                     MessageTypes.SYNC_PLAYBACK -> {
                         val payload = codec.decodePayload(msgType, payloadBytes) as? PlaybackActionPayload ?: return
+
+                        // Intercept relay messages disguised as SEEK-sentinel events.
+                        // The host broadcasts relayed chat/action from guests this way.
+                        if (payload.action == PlaybackActions.SEEK &&
+                            payload.position == RELAY_SENTINEL_POSITION
+                        ) {
+                            val encoded = payload.trackId ?: return
+                            val relay = decodeRelayPayload(encoded) ?: run {
+                                log(LogLevel.WARNING, "Received relay sentinel with undecodable payload")
+                                return
+                            }
+
+                            // Deduplicate: skip if we already showed this message.
+                            if (seenRelayMsgIds.contains(relay.msgId)) return
+                            seenRelayMsgIds.markSeen(relay.msgId)
+
+                            when (relay.type) {
+                                RelayType.CHAT -> {
+                                    val parts = relay.data.split("\n", limit = 3)
+                                    if (parts.size == 3) {
+                                        val chatMsg = ChatMessagePayload(
+                                            userId = parts[0],
+                                            username = parts[1],
+                                            message = parts[2],
+                                            timestamp = relay.timestamp,
+                                        )
+                                        // Skip messages from blocked users
+                                        if (!isUserBlocked(chatMsg.username)) {
+                                            _chatMessages.value = _chatMessages.value + chatMsg
+                                            scope.launch { _events.emit(ListenTogetherEvent.ChatReceived(chatMsg)) }
+                                        }
+                                    }
+                                }
+                                RelayType.ACTION, RelayType.QUEUE_REMOVE -> {
+                                    // Guests don't re-apply an action relayed by the host;
+                                    // the host will broadcast the actual state change as a
+                                    // normal SYNC_PLAYBACK that all clients already handle.
+                                }
+                            }
+                            return // Do NOT fall through to regular playback handling.
+                        }
+
                         log(LogLevel.DEBUG, "Playback sync", "Action: ${payload.action}")
 
                         // Update room state based on action
@@ -1196,32 +1317,136 @@ class ListenTogetherClient
 
                     MessageTypes.SUGGESTION_RECEIVED -> {
                         val payload = codec.decodePayload(msgType, payloadBytes) as? SuggestionReceivedPayload ?: return
-                        // Only host should receive suggestions
-                        if (_role.value == RoomRole.HOST) {
-                            // Check if user is blocked
-                            if (isUserBlocked(payload.fromUsername)) {
-                                log(LogLevel.INFO, "Suggestion from blocked user ignored", "User: ${payload.fromUsername}")
+                        // Only the host receives suggestions.
+                        if (_role.value != RoomRole.HOST) return
+
+                        // Check if user is blocked first.
+                        if (isUserBlocked(payload.fromUsername)) {
+                            log(LogLevel.INFO, "Suggestion from blocked user ignored", "User: ${payload.fromUsername}")
+                            return
+                        }
+
+                        // Intercept relay messages (chat or guest action) disguised as suggestions.
+                        if (payload.trackInfo.id == RELAY_TRACK_ID_MARKER) {
+                            val relay = decodeRelayPayload(payload.trackInfo.title) ?: run {
+                                log(LogLevel.WARNING, "Received relay marker suggestion with undecodable payload")
+                                // Silently reject — null reason suppresses any UI flicker (Bug 4 fix).
+                                rejectSuggestion(payload.suggestionId, null)
                                 return
                             }
 
-                            log(LogLevel.INFO, "Suggestion received", "${payload.fromUsername}: ${payload.trackInfo.title}")
+                            // Reject the server-side suggestion entry immediately and silently.
+                            // null reason → no visible toast in this build (Bug 4 fix).
+                            rejectSuggestion(payload.suggestionId, null)
 
-                            // Check if auto-approval of suggestions is enabled
-                            val autoApproveSuggestionsEnabled = context.dataStore.get(ListenTogetherAutoApproveSuggestionsKey, false)
+                            when (relay.type) {
+                                RelayType.CHAT -> {
+                                    // Deduplicate on host side too.
+                                    if (seenRelayMsgIds.contains(relay.msgId)) return
+                                    seenRelayMsgIds.markSeen(relay.msgId)
 
-                            if (autoApproveSuggestionsEnabled) {
-                                // Automatically approve the suggestion
-                                log(LogLevel.INFO, "Auto-approving suggestion", "${payload.fromUsername}: ${payload.trackInfo.title}")
-                                approveSuggestion(payload.suggestionId)
-                            } else {
-                                // Add to pending list and show notification
-                                _pendingSuggestions.value += payload
-                                // Notify the host with actionable notification
-                                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
-                                    PackageManager.PERMISSION_GRANTED
-                                ) {
-                                    showSuggestionNotification(payload)
+                                    val parts = relay.data.split("\n", limit = 3)
+                                    if (parts.size == 3) {
+                                        val chatMsg = ChatMessagePayload(
+                                            userId = parts[0],
+                                            username = parts[1],
+                                            message = parts[2],
+                                            timestamp = relay.timestamp,
+                                        )
+                                        // 1. Display locally on the host.
+                                        _chatMessages.value = _chatMessages.value + chatMsg
+                                        scope.launch { _events.emit(ListenTogetherEvent.ChatReceived(chatMsg)) }
+
+                                        // 2. Relay to all other guests via SEEK-sentinel from the host.
+                                        //    We reuse msgId so any client that already saw it will dedup it.
+                                        val reencoded = encodeRelayPayload(RelayType.CHAT, relay.msgId, relay.data)
+                                        sendMessage(
+                                            MessageTypes.PLAYBACK_ACTION,
+                                            PlaybackActionPayload(
+                                                action = PlaybackActions.SEEK,
+                                                trackId = reencoded,
+                                                position = RELAY_SENTINEL_POSITION,
+                                            ),
+                                        )
+                                        log(LogLevel.INFO, "Chat relay received and rebroadcast",
+                                            "From: ${chatMsg.username}, msgId: ${relay.msgId}")
+                                    }
                                 }
+
+                                RelayType.QUEUE_REMOVE -> {
+                                    if (!_guestControlsEnabled.value) {
+                                        log(LogLevel.DEBUG, "Guest queue remove relay ignored — guest controls disabled")
+                                        return
+                                    }
+
+                                    log(LogLevel.INFO, "Guest queue remove relay received",
+                                        "Track ID: ${relay.data}, from: ${payload.fromUsername}")
+
+                                    scope.launch {
+                                        _events.emit(
+                                            ListenTogetherEvent.PlaybackSync(
+                                                PlaybackActionPayload(
+                                                    action = PlaybackActions.QUEUE_REMOVE,
+                                                    trackId = relay.data,
+                                                )
+                                            )
+                                        )
+                                    }
+                                }
+
+                                RelayType.ACTION -> {
+                                    // Honor only if guest controls are enabled on the host.
+                                    if (!_guestControlsEnabled.value) {
+                                        log(LogLevel.DEBUG, "Guest action relay ignored — guest controls disabled")
+                                        return
+                                    }
+
+                                    // Parse the encoded action data: action;trackId;position;volume;insertNext
+                                    val parts = relay.data.split(";")
+                                    val action = parts.getOrNull(0).takeIf { !it.isNullOrEmpty() } ?: return
+                                    val trackIdVal = parts.getOrNull(1).takeIf { !it.isNullOrEmpty() }
+                                    val positionVal = parts.getOrNull(2)?.toLongOrNull()
+                                    val volumeVal = parts.getOrNull(3)?.toFloatOrNull()
+                                    val insertNextVal = parts.getOrNull(4) == "1"
+
+                                    log(LogLevel.INFO, "Guest action relay received",
+                                        "Action: $action, from: ${payload.fromUsername}")
+
+                                    // Emit a local PlaybackSync event so ListenTogetherManager
+                                    // applies it to the player. The manager's playerListener will
+                                    // then broadcast the resulting state change to everyone normally.
+                                    scope.launch {
+                                        _events.emit(
+                                            ListenTogetherEvent.PlaybackSync(
+                                                PlaybackActionPayload(
+                                                    action = action,
+                                                    trackId = trackIdVal,
+                                                    position = positionVal,
+                                                    volume = volumeVal,
+                                                    insertNext = insertNextVal.takeIf { it },
+                                                ),
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
+                            return // Do NOT fall through to normal suggestion handling.
+                        }
+
+                        log(LogLevel.INFO, "Suggestion received", "${payload.fromUsername}: ${payload.trackInfo.title}")
+
+                        // Check if auto-approval of suggestions is enabled
+                        val autoApproveSuggestionsEnabled = context.dataStore.get(ListenTogetherAutoApproveSuggestionsKey, false)
+
+                        if (autoApproveSuggestionsEnabled) {
+                            log(LogLevel.INFO, "Auto-approving suggestion", "${payload.fromUsername}: ${payload.trackInfo.title}")
+                            approveSuggestion(payload.suggestionId)
+                        } else {
+                            _pendingSuggestions.value += payload
+                            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+                                PackageManager.PERMISSION_GRANTED
+                            ) {
+                                showSuggestionNotification(payload)
                             }
                         }
                     }
@@ -1256,34 +1481,67 @@ class ListenTogetherClient
 
                         // Handle specific error cases
                         when (payload.code) {
+                            "room_not_found" -> {
+                                // Room does not exist - clear everything so the user can retry
+                                log(LogLevel.WARNING, "Room not found", "Clearing session and notifying UI")
+                                sessionToken = null
+                                storedRoomCode = null
+                                storedUsername = null
+                                _roomState.value = null
+                                _role.value = RoomRole.NONE
+                                _userId.value = null
+                                reconnectAttempts = 0
+                                clearPersistedSession()
+                                releaseWakeLock()
+                            }
+
                             "session_not_found" -> {
-                                // Session expired on server, try to rejoin the room
-                                if (storedRoomCode != null && storedUsername != null && !wasHost) {
+                                // Session expired on server - attempt a one-shot rejoin as guest.
+                                // Only retry once (reconnectAttempts tracks this) to avoid an
+                                // infinite loop when the room itself is also gone.
+                                if (storedRoomCode != null && storedUsername != null && !wasHost
+                                    && reconnectAttempts < 1
+                                ) {
+                                    reconnectAttempts++ // use as a single-attempt guard
+                                    val code = storedRoomCode!!
+                                    val name = storedUsername!!
                                     log(
                                         LogLevel.WARNING,
                                         "Session expired on server",
-                                        "Attempting automatic rejoin to room: $storedRoomCode",
+                                        "Attempting automatic rejoin to room: $code",
                                     )
-                                    // Try rejoining as a guest
                                     scope.launch {
                                         delay(500) // Small delay before rejoin attempt
-                                        joinRoom(storedRoomCode!!, storedUsername!!)
+                                        joinRoom(code, name)
                                     }
-                                } else if (storedRoomCode != null && storedUsername != null) {
-                                    // Host session expired - would need to create new room
-                                    log(
-                                        LogLevel.WARNING,
-                                        "Host session expired",
-                                        "Room: $storedRoomCode - manual intervention may be needed",
-                                    )
-                                    clearPersistedSession()
-                                    sessionToken = null
+                                    // Don't emit ServerError yet - wait to see if rejoin succeeds
+                                    return
                                 } else {
+                                    // Either host session, or we've already tried once - give up
+                                    log(LogLevel.WARNING, "Session expired and rejoin not possible", "Clearing state")
                                     clearPersistedSession()
                                     sessionToken = null
+                                    storedRoomCode = null
+                                    storedUsername = null
+                                    _roomState.value = null
+                                    _role.value = RoomRole.NONE
+                                    reconnectAttempts = 0
                                 }
                             }
 
+                            // Suppress server-side rejections that are expected side effects
+                            // of the relay mechanism (not genuine errors the user should see).
+                            "not_host" -> {
+                                // Guests sending normal playback_action reaches here only if the
+                                // relay path was somehow bypassed. Swallow silently.
+                                log(LogLevel.DEBUG, "Suppressed not_host error (relay in use)")
+                                return
+                            }
+                            "unknown_message_type" -> {
+                                // Server rejects our CHAT type; relay is already active.
+                                log(LogLevel.DEBUG, "Suppressed unknown_message_type error")
+                                return
+                            }
                             else -> {}
                         }
 
@@ -1292,6 +1550,28 @@ class ListenTogetherClient
 
                     MessageTypes.PONG -> {
                         log(LogLevel.DEBUG, "Pong received")
+                    }
+
+                    MessageTypes.CHAT -> {
+                        val payload = codec.decodePayload(msgType, payloadBytes) as? ChatMessagePayload ?: return
+                        
+                        // Check if user is blocked
+                        if (isUserBlocked(payload.username)) {
+                            log(LogLevel.INFO, "Chat message from blocked user ignored", "User: ${payload.username}")
+                            return
+                        }
+
+                        _chatMessages.value = _chatMessages.value + payload
+                        log(LogLevel.INFO, "Chat message received", "${payload.username}: ${payload.message}")
+                        scope.launch { _events.emit(ListenTogetherEvent.ChatReceived(payload)) }
+                        
+                        if (payload.userId != _userId.value) {
+                            try {
+                                showChatNotification(payload)
+                            } catch (e: SecurityException) {
+                                log(LogLevel.WARNING, "Missing notification permission for chat", e.message)
+                            }
+                        }
                     }
 
                     MessageTypes.RECONNECTED -> {
@@ -1380,6 +1660,65 @@ class ListenTogetherClient
         }
 
         // Public API methods
+
+        /**
+         * Send a chat message to the room
+         */
+        fun sendChatMessage(message: String) {
+            if (_connectionState.value != ConnectionState.CONNECTED) {
+                log(LogLevel.WARNING, "Cannot send chat message, not connected")
+                return
+            }
+
+            val msgId = java.util.UUID.randomUUID().toString().take(12)
+            val userId = _userId.value ?: "unknown"
+            val username = storedUsername ?: "unknown"
+
+            // Step 1: Add to local UI immediately (optimistic display) and mark as seen
+            // so we don't double-display it when the relay echo arrives (Bug 2 fix).
+            val chatMsg = ChatMessagePayload(
+                userId = userId,
+                username = username,
+                message = message,
+                timestamp = System.currentTimeMillis(),
+            )
+            _chatMessages.value = _chatMessages.value + chatMsg
+            scope.launch { _events.emit(ListenTogetherEvent.ChatReceived(chatMsg)) }
+            seenRelayMsgIds.markSeen(msgId)
+
+            // Step 2: Encode the relay payload (Base64 JSON — no delimiter fragility).
+            // data field carries "userId\nusername\nmessage" with \n as separator.
+            // \n is safe because Base64 output uses NO_WRAP (no embedded newlines).
+            val relayData = "$userId\n$username\n$message"
+            val encoded = encodeRelayPayload(RelayType.CHAT, msgId, relayData)
+
+            if (_role.value == RoomRole.HOST) {
+                // Host sends the relay directly via a SEEK-sentinel PlaybackAction.
+                // The server accepts SEEK from the host and broadcasts it to all guests.
+                sendMessage(
+                    MessageTypes.PLAYBACK_ACTION,
+                    PlaybackActionPayload(
+                        action = PlaybackActions.SEEK,
+                        trackId = encoded,
+                        position = RELAY_SENTINEL_POSITION,
+                    ),
+                )
+            } else {
+                // Guest sends to host via SuggestTrack — the server forwards this to the host.
+                sendMessage(
+                    MessageTypes.SUGGEST_TRACK,
+                    SuggestTrackPayload(
+                        TrackInfo(
+                            id = RELAY_TRACK_ID_MARKER,
+                            title = encoded,
+                            artist = userId,
+                            duration = 0L,
+                        ),
+                    ),
+                )
+            }
+            log(LogLevel.INFO, "Chat relay sent", "Role: ${_role.value}, msgId: $msgId")
+        }
 
         /**
          * Create a new listening room.
@@ -1535,14 +1874,67 @@ class ListenTogetherClient
             queueTitle: String? = null,
             volume: Float? = null,
         ) {
-            if (_role.value != RoomRole.HOST) {
-                log(LogLevel.ERROR, "Cannot control playback", "Not host")
-                return
+            if (_role.value == RoomRole.HOST) {
+                // Host sends directly — server always accepts this.
+                sendMessage(
+                    MessageTypes.PLAYBACK_ACTION,
+                    PlaybackActionPayload(action, trackId, position, trackInfo, insertNext, queue, queueTitle, volume),
+                )
+            } else {
+                // Guest — never send playback_action directly (server returns not_host).
+                // Instead, send a relay suggestion to the host who will apply the action
+                // and naturally broadcast the new state to everyone via the server.
+                // Note: the host decides whether to honor this based on guestControlsEnabled.
+
+                // Handle queue remove from guest
+                if (action == PlaybackActions.QUEUE_REMOVE && trackId != null) {
+                    val msgId = java.util.UUID.randomUUID().toString().take(12)
+                    val encodedPayload = encodeRelayPayload(RelayType.QUEUE_REMOVE, msgId, trackId)
+                    sendMessage(
+                        MessageTypes.SUGGEST_TRACK,
+                        SuggestTrackPayload(
+                            TrackInfo(
+                                id = RELAY_TRACK_ID_MARKER,
+                                title = encodedPayload,
+                                artist = _userId.value ?: "",
+                                duration = 0L,
+                            ),
+                        ),
+                    )
+                    log(LogLevel.DEBUG, "Guest QUEUE_REMOVE relayed", "TrackId: $trackId, msgId: $msgId")
+                    return
+                }
+
+                // Filter out non-playback actions (e.g. sync_queue)
+                val relayableActions = setOf(PlaybackActions.PLAY, PlaybackActions.PAUSE, PlaybackActions.SEEK, PlaybackActions.CHANGE_TRACK, PlaybackActions.SET_VOLUME)
+                if (action !in relayableActions) return
+
+                val msgId = java.util.UUID.randomUUID().toString().take(12)
+                // Encode action data: action;trackId;position;volume
+                // Each field is Base64-safe, but we use ; as separator and each segment
+                // is individually safe (numeric or simple strings with no special chars).
+                val actionData = buildString {
+                    append(action)
+                    append(";").append(trackId ?: "")
+                    append(";").append(position?.toString() ?: "")
+                    append(";").append(volume?.toString() ?: "")
+                    // insertNext encoded as "1"/"0"
+                    append(";").append(if (insertNext == true) "1" else "")
+                }
+                val encoded = encodeRelayPayload(RelayType.ACTION, msgId, actionData)
+                sendMessage(
+                    MessageTypes.SUGGEST_TRACK,
+                    SuggestTrackPayload(
+                        TrackInfo(
+                            id = RELAY_TRACK_ID_MARKER,
+                            title = encoded,
+                            artist = _userId.value ?: "",
+                            duration = 0L,
+                        ),
+                    ),
+                )
+                log(LogLevel.DEBUG, "Guest action relayed", "Action: $action, msgId: $msgId")
             }
-            sendMessage(
-                MessageTypes.PLAYBACK_ACTION,
-                PlaybackActionPayload(action, trackId, position, trackInfo, insertNext, queue, queueTitle, volume),
-            )
         }
 
         /**

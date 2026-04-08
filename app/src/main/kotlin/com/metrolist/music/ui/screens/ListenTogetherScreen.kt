@@ -62,6 +62,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import com.metrolist.music.listentogether.ChatMessagePayload
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -143,6 +150,26 @@ fun ListenTogetherScreen(
     val waitingForApprovalText = stringResource(R.string.waiting_for_approval)
     val invalidRoomCodeText = stringResource(R.string.invalid_room_code)
     val joinRequestDeniedText = stringResource(R.string.join_request_denied)
+    val roomNotFoundText = stringResource(R.string.surparty_room_not_found)
+    val connectionErrorText = stringResource(R.string.surparty_connection_error)
+
+    val chatMessages by listenTogetherManager.chatMessages.collectAsState()
+    var showChatSheet by rememberSaveable { mutableStateOf(false) }
+    var showInstructionsDialog by rememberSaveable { mutableStateOf(false) }
+
+    val lastMessage = chatMessages.lastOrNull()
+    var latestNotifiedMessageId by rememberSaveable { mutableStateOf<String?>(null) }
+    
+    // Notification for new messages when sheet is closed
+    LaunchedEffect(lastMessage) {
+        if (lastMessage != null && !showChatSheet) {
+            val msgId = "${lastMessage.timestamp}_${lastMessage.userId}"
+            if (msgId != latestNotifiedMessageId && lastMessage.userId != userId) {
+                latestNotifiedMessageId = msgId
+                Toast.makeText(context, "${lastMessage.username}: ${lastMessage.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     LaunchedEffect(savedUsername) {
         if (usernameInput.isBlank() && savedUsername.isNotBlank()) {
@@ -175,6 +202,30 @@ fun ListenTogetherScreen(
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                     val clip = android.content.ClipData.newPlainText("ListenTogetherRoom", event.roomCode)
                     clipboard.setPrimaryClip(clip)
+                }
+
+                is ListenTogetherEvent.ServerError -> {
+                    // Server returned an explicit error (e.g. room_not_found)
+                    val code = event.code
+                    joinErrorMessage = when {
+                        code.contains("room_not_found", ignoreCase = true) -> roomNotFoundText
+                        code.contains("session_not_found", ignoreCase = true) -> roomNotFoundText
+                        code.contains("invalid", ignoreCase = true) -> invalidRoomCodeText
+                        else -> event.message ?: roomNotFoundText
+                    }
+                    isJoiningRoom = false
+                    isCreatingRoom = false
+                }
+
+                is ListenTogetherEvent.ConnectionError -> {
+                    // Network/WebSocket connection failed
+                    joinErrorMessage = if (event.error.contains("room", ignoreCase = true)) {
+                        roomNotFoundText
+                    } else {
+                        connectionErrorText
+                    }
+                    isJoiningRoom = false
+                    isCreatingRoom = false
                 }
 
                 else -> {}
@@ -305,6 +356,33 @@ fun ListenTogetherScreen(
                     )
                 }
 
+                // Chat button
+                item {
+                    val isChatEnabled = room.users.size >= 2
+                    Button(
+                        onClick = { showChatSheet = true },
+                        enabled = isChatEnabled,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors =
+                            ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            ),
+                        shape = RoundedCornerShape(16.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_chat),
+                            contentDescription = stringResource(R.string.chat),
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            stringResource(if (isChatEnabled) R.string.chat else R.string.chat_requires_two_users),
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+
                 // Pending join requests (host only)
                 if (isHost && pendingJoinRequests.isNotEmpty()) {
                     item {
@@ -430,7 +508,82 @@ fun ListenTogetherScreen(
                     )
                 }
             },
+            actions = {
+                MaterialIconButton(onClick = { showInstructionsDialog = true }) {
+                    Icon(
+                        painter = painterResource(R.drawable.info),
+                        contentDescription = stringResource(R.string.surparty_instructions_title),
+                    )
+                }
+            }
         )
+    }
+
+    if (showInstructionsDialog) {
+        DefaultDialog(
+            onDismiss = { showInstructionsDialog = false },
+            icon = {
+                Icon(
+                    painter = painterResource(R.drawable.info),
+                    contentDescription = null,
+                    modifier = Modifier.size(28.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = stringResource(R.string.surparty_instructions_title),
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            buttons = {
+                TextButton(onClick = { showInstructionsDialog = false }) {
+                    Text(stringResource(android.R.string.ok))
+                }
+            }
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.padding(horizontal = 8.dp)
+            ) {
+                InstructionStep(
+                    stepNumber = "1",
+                    title = stringResource(R.string.surparty_step_1_title),
+                    description = stringResource(R.string.surparty_step_1_desc)
+                )
+                InstructionStep(
+                    stepNumber = "2",
+                    title = stringResource(R.string.surparty_step_2_title),
+                    description = stringResource(R.string.surparty_step_2_desc)
+                )
+                InstructionStep(
+                    stepNumber = "3",
+                    title = stringResource(R.string.surparty_step_3_title),
+                    description = stringResource(R.string.surparty_step_3_desc)
+                )
+                InstructionStep(
+                    stepNumber = "4",
+                    title = stringResource(R.string.surparty_step_4_title),
+                    description = stringResource(R.string.surparty_step_4_desc)
+                )
+            }
+        }
+    }
+
+    if (showChatSheet) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showChatSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface,
+        ) {
+            ChatBottomSheetContent(
+                messages = chatMessages,
+                currentUserId = userId ?: "",
+                onSendMessage = { text ->
+                    listenTogetherManager.sendChatMessage(text)
+                }
+            )
+        }
     }
 }
 
@@ -623,20 +776,32 @@ private fun ConnectionStatusCard(
                     Button(
                         onClick = onDisconnect,
                         modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors =
                             ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,
                             ),
                     ) {
-                        Text(stringResource(R.string.disconnect), fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = stringResource(R.string.disconnect),
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                     FilledTonalButton(
                         onClick = onReconnect,
                         modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
                         shape = RoundedCornerShape(12.dp),
                     ) {
-                        Text("Reconnect", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = "Reconnect",
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
             }
@@ -695,50 +860,22 @@ private fun RoomStatusCard(
 
             if (isHost) {
                 Spacer(modifier = Modifier.height(16.dp))
-                val inviteLink =
-                    remember(roomCode) {
-                        "https://metrolist.meowery.eu/listen?code=$roomCode"
-                    }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                    modifier = Modifier.fillMaxWidth(),
+                FilledTonalButton(
+                    onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        val clip = android.content.ClipData.newPlainText("Room Code", roomCode)
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(context, R.string.copied_to_clipboard, Toast.LENGTH_SHORT).show()
+                    },
+                    shape = RoundedCornerShape(12.dp),
                 ) {
-                    FilledTonalButton(
-                        onClick = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                            val clip = android.content.ClipData.newPlainText("Listen Together Link", inviteLink)
-                            clipboard.setPrimaryClip(clip)
-                            Toast.makeText(context, R.string.copied_to_clipboard, Toast.LENGTH_SHORT).show()
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.link),
-                            contentDescription = stringResource(R.string.copy_link),
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.copy_link))
-                    }
-
-                    FilledTonalButton(
-                        onClick = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                            val clip = android.content.ClipData.newPlainText("Room Code", roomCode)
-                            clipboard.setPrimaryClip(clip)
-                            Toast.makeText(context, R.string.copied_to_clipboard, Toast.LENGTH_SHORT).show()
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.content_copy),
-                            contentDescription = stringResource(R.string.copy_code),
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.copy_code))
-                    }
+                    Icon(
+                        painter = painterResource(R.drawable.content_copy),
+                        contentDescription = stringResource(R.string.copy_code),
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.copy_code))
                 }
             }
         }
@@ -1466,6 +1603,186 @@ private fun UserActionDialog(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ChatBottomSheetContent(
+    messages: List<ChatMessagePayload>,
+    currentUserId: String,
+    onSendMessage: (String) -> Unit
+) {
+    var inputText by rememberSaveable { mutableStateOf("") }
+    val listState = rememberLazyListState()
+    val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(450.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.chat),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+        HorizontalDivider()
+        
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(messages) { msg ->
+                val isMe = msg.userId == currentUserId
+                val timeString = timeFormat.format(Date(msg.timestamp))
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (isMe) Arrangement.End else Arrangement.Start
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                    ) {
+                        if (!isMe) {
+                            Text(
+                                text = msg.username,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(
+                                    RoundedCornerShape(
+                                        topStart = 16.dp,
+                                        topEnd = 16.dp,
+                                        bottomStart = if (isMe) 16.dp else 4.dp,
+                                        bottomEnd = if (isMe) 4.dp else 16.dp
+                                    )
+                                )
+                                .background(
+                                    if (isMe) MaterialTheme.colorScheme.primaryContainer 
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                                .padding(12.dp)
+                                .align(if (isMe) Alignment.End else Alignment.Start)
+                        ) {
+                            Text(
+                                text = msg.message,
+                                color = if (isMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            text = timeString,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier
+                                .align(if (isMe) Alignment.End else Alignment.Start)
+                                .padding(start = 4.dp, end = 4.dp, top = 2.dp)
+                        )
+                    }
+                }
+            }
+        }
+        
+        Surface(
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 2.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+                    .imePadding()
+                    .systemBarsPadding(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = inputText,
+                    onValueChange = { inputText = it },
+                    placeholder = { Text(stringResource(R.string.type_message)) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                    ),
+                    maxLines = 4
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                androidx.compose.material3.IconButton(
+                    onClick = {
+                        val text = inputText.trim()
+                        if (text.isNotEmpty()) {
+                            onSendMessage(text)
+                            inputText = ""
+                        }
+                    },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary)
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_send),
+                        contentDescription = stringResource(R.string.send),
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InstructionStep(stepNumber: String, title: String, description: String) {
+    Row(
+        verticalAlignment = Alignment.Top,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = stepNumber,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

@@ -5,8 +5,10 @@
 
 package com.metrolist.music.listentogether
 
+import android.util.Base64
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.json.JSONObject
 
 /**
  * Message types for Listen Together protocol
@@ -56,6 +58,100 @@ object MessageTypes {
 /**
  * Playback action types
  */
+// ─────────────────────────────────────────────────────────────────────────────
+// Host Relay Mechanism
+//
+// The metroserverx server only accepts playback_action from the host, and
+// rejects chat messages entirely. To work around this without modifying the
+// server, we build a thin relay layer on top of already-allowed messages:
+//
+//  Guest → Host : SuggestTrackPayload  with trackInfo.id = "__RELAY__"
+//                  and trackInfo.title = Base64(JSON relay payload)
+//
+//  Host → All   : PlaybackActionPayload with action = PlaybackActions.SEEK
+//                  and position = RELAY_SENTINEL_POSITION
+//                  and trackId  = Base64(JSON relay payload)
+//
+// The JSON relay payload is always:
+//   { "t": type.code, "id": msgId, "d": data, "ts": timestampMs }
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Marker value in the `position` field that signals this SEEK carries a relay payload. */
+const val RELAY_SENTINEL_POSITION = 9_999_999_998L
+
+/** Marker in TrackInfo.id that signals a suggestion is actually a relay payload. */
+const val RELAY_TRACK_ID_MARKER = "__RELAY__"
+
+/** Relay message types. */
+enum class RelayType(val code: String) {
+    CHAT("C"),
+    ACTION("A"),
+    QUEUE_REMOVE("Q");
+
+    companion object {
+        fun from(code: String): RelayType? = values().firstOrNull { it.code == code }
+    }
+}
+
+/**
+ * Decoded relay payload extracted from either a SEEK-sentinel or a SuggestTrack.
+ */
+data class RelayPayload(
+    val type: RelayType,
+    val msgId: String,
+    val data: String,
+    val timestamp: Long,
+)
+
+/**
+ * Encode a relay payload as a Base64 JSON string safe to embed in any protobuf string field.
+ * Uses NO_WRAP so there are no newlines.
+ */
+fun encodeRelayPayload(type: RelayType, msgId: String, data: String): String {
+    val json = JSONObject().apply {
+        put("t", type.code)
+        put("id", msgId)
+        put("d", data)
+        put("ts", System.currentTimeMillis())
+    }
+    return Base64.encodeToString(
+        json.toString().toByteArray(Charsets.UTF_8),
+        Base64.NO_WRAP,
+    )
+}
+
+/**
+ * Decode a relay payload. Returns null if the string is not a valid relay payload
+ * (i.e., this is a regular message and should be handled normally).
+ */
+fun decodeRelayPayload(encoded: String): RelayPayload? = runCatching {
+    val json = JSONObject(String(Base64.decode(encoded, Base64.NO_WRAP), Charsets.UTF_8))
+    val type = RelayType.from(json.getString("t")) ?: return null
+    RelayPayload(
+        type = type,
+        msgId = json.getString("id"),
+        data = json.getString("d"),
+        timestamp = json.getLong("ts"),
+    )
+}.getOrNull()
+
+/**
+ * Extension to add an ID to a bounded LinkedHashSet. Drops the oldest entries when full.
+ */
+fun LinkedHashSet<String>.markSeen(msgId: String, maxSize: Int = 200) {
+    add(msgId)
+    if (size > maxSize) {
+        // Remove oldest 50 items to free space while keeping recent ones
+        val iterator = iterator()
+        var toRemove = size - (maxSize - 50)
+        while (iterator.hasNext() && toRemove > 0) {
+            iterator.next()
+            iterator.remove()
+            toRemove--
+        }
+    }
+}
+
 object PlaybackActions {
     const val PLAY = "play"
     const val PAUSE = "pause"

@@ -39,40 +39,36 @@ fun MetrolistTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     pureBlack: Boolean = false,
     themeColor: Color = DefaultThemeColor,
+    curatedColorScheme: ColorScheme? = null,   // When set, bypasses MaterialKolor entirely
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
-    // Determine if system dynamic colors should be used (Android S+ and default theme color)
-    val useSystemDynamicColor = (themeColor == DefaultThemeColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
 
-    // Select the appropriate color scheme generation method
-    val baseColorScheme = if (useSystemDynamicColor) {
-        // Use standard Material 3 dynamic color functions for system wallpaper colors
-        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-    } else {
-        // Use materialKolor only when a specific seed color is provided
-        rememberDynamicColorScheme(
-            seedColor = themeColor, // themeColor is guaranteed non-default here
-            isDark = darkTheme,
-            specVersion = ColorSpec.SpecVersion.SPEC_2025,
-            style = PaletteStyle.TonalSpot // Keep existing style
+    val baseColorScheme = when {
+        // ① Curated theme: use exact hand-crafted ColorScheme — no tonal pastel
+        curatedColorScheme != null -> curatedColorScheme
+
+        // ② System dynamic (Android S+, default color): wallpaper-derived
+        themeColor == DefaultThemeColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+
+        // ③ MaterialKolor seed-color tonal scheme
+        else -> rememberDynamicColorScheme(
+            seedColor    = themeColor,
+            isDark       = darkTheme,
+            specVersion  = ColorSpec.SpecVersion.SPEC_2025,
+            style        = PaletteStyle.TonalSpot,
         )
     }
 
-    // Apply pureBlack modification if needed, similar to original logic
     val colorScheme = remember(baseColorScheme, pureBlack, darkTheme) {
-        if (darkTheme && pureBlack) {
-            baseColorScheme.pureBlack(true)
-        } else {
-            baseColorScheme
-        }
+        if (darkTheme && pureBlack) baseColorScheme.pureBlack(true) else baseColorScheme
     }
 
-    // Use standard MaterialTheme instead of MaterialExpressiveTheme
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = AppTypography, // Use the defined AppTypography
-        content = content
+        typography  = AppTypography,
+        content     = content,
     )
 }
 

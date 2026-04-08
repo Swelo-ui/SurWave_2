@@ -149,7 +149,8 @@ fun PlayerMenu(
 
     val listenTogetherManager = LocalListenTogetherManager.current
     val listenTogetherRoleState = listenTogetherManager?.role?.collectAsState(initial = com.metrolist.music.listentogether.RoomRole.NONE)
-    val isListenTogetherGuest = listenTogetherRoleState?.value == com.metrolist.music.listentogether.RoomRole.GUEST
+    val guestControlsEnabledInMenu by rememberPreference(com.metrolist.music.constants.ListenTogetherGuestControlsKey, false)
+    val isListenTogetherGuest = listenTogetherRoleState?.value == com.metrolist.music.listentogether.RoomRole.GUEST && !guestControlsEnabledInMenu
     val pendingSuggestions by listenTogetherManager?.pendingSuggestions?.collectAsState(initial = emptyList())
         ?: remember { mutableStateOf(emptyList()) }
 
@@ -1238,18 +1239,30 @@ fun ListenTogetherDialog(
                             Button(
                                 onClick = { listenTogetherManager.disconnect() },
                                 modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp),
                                 colors =
                                     ButtonDefaults.buttonColors(
                                         containerColor = MaterialTheme.colorScheme.primary,
                                     ),
                             ) {
-                                Text(stringResource(R.string.disconnect), fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    text = stringResource(R.string.disconnect),
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
                             }
                             FilledTonalButton(
                                 onClick = { listenTogetherManager.forceReconnect() },
                                 modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 8.dp),
                             ) {
-                                Text("Reconnect", fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    text = "Reconnect",
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
                             }
                         }
                     }
@@ -1314,7 +1327,8 @@ fun ListenTogetherDialog(
                                     }
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth(),
                                 ) {
                                     FilledTonalButton(
                                         onClick = {
@@ -1326,17 +1340,21 @@ fun ListenTogetherDialog(
                                             clipboard.setPrimaryClip(clip)
                                             Toast.makeText(context, R.string.copied_to_clipboard, Toast.LENGTH_SHORT).show()
                                         },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(horizontal = 8.dp),
                                     ) {
                                         Icon(
                                             painter = painterResource(R.drawable.link),
                                             contentDescription = stringResource(R.string.copy_link),
                                             modifier = Modifier.size(18.dp),
                                         )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(stringResource(R.string.copy_link))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = stringResource(R.string.copy_link),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
                                     }
-
-                                    Spacer(modifier = Modifier.width(8.dp))
 
                                     FilledTonalButton(
                                         onClick = {
@@ -1348,14 +1366,20 @@ fun ListenTogetherDialog(
                                             clipboard.setPrimaryClip(clip)
                                             Toast.makeText(context, R.string.copied_to_clipboard, Toast.LENGTH_SHORT).show()
                                         },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(horizontal = 8.dp),
                                     ) {
                                         Icon(
                                             painter = painterResource(R.drawable.content_copy),
                                             contentDescription = stringResource(R.string.copy_code),
                                             modifier = Modifier.size(18.dp),
                                         )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(stringResource(R.string.copy_code))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = stringResource(R.string.copy_code),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
                                     }
                                 }
                             }
@@ -1688,15 +1712,18 @@ fun ListenTogetherDialog(
                             Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         TextButton(
                             onClick = onDismiss,
                             modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp),
                         ) {
                             Text(
-                                stringResource(R.string.cancel),
+                                text = stringResource(R.string.cancel),
                                 fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                         Button(
@@ -1705,6 +1732,7 @@ fun ListenTogetherDialog(
                                 onDismiss()
                             },
                             modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 8.dp),
                             colors =
                                 ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.error,
@@ -1715,8 +1743,13 @@ fun ListenTogetherDialog(
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp),
                             )
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.leave_room), fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = stringResource(R.string.leave_room),
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
                     Spacer(modifier = Modifier.height(16.dp))

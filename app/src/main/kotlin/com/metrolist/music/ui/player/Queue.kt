@@ -171,7 +171,8 @@ fun Queue(
     // Listen Together state (reactive)
     val listenTogetherManager = LocalListenTogetherManager.current
     val listenTogetherRoleState = listenTogetherManager?.role?.collectAsState(initial = com.metrolist.music.listentogether.RoomRole.NONE)
-    val isListenTogetherGuest = listenTogetherRoleState?.value == RoomRole.GUEST
+    val guestControlsEnabledInQueue by rememberPreference(com.metrolist.music.constants.ListenTogetherGuestControlsKey, false)
+    val isListenTogetherGuest = listenTogetherRoleState?.value == RoomRole.GUEST && !guestControlsEnabledInQueue
 
     val playerConnection = LocalPlayerConnection.current ?: return
     val isPlaying by playerConnection.isEffectivelyPlaying.collectAsState()

@@ -115,6 +115,8 @@ class ListenTogetherManager @Inject constructor(
     val events = client.events
     val blockedUsernames = client.blockedUsernames
     val pendingSuggestions = client.pendingSuggestions
+    val chatMessages = client.chatMessages
+    val guestControlsEnabled = client.guestControlsEnabled
 
     val isInRoom: Boolean get() = client.isInRoom
     val isHost: Boolean get() = client.isHost
@@ -123,7 +125,7 @@ class ListenTogetherManager @Inject constructor(
     private val playerListener = object : Player.Listener {
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             try {
-                if (isSyncing || !isHost || !isInRoom) return
+                if (isSyncing || (!isHost && !guestControlsEnabled.value) || !isInRoom) return
                 
                 val connection = playerConnection ?: return
                 val player = connection.player
@@ -179,7 +181,7 @@ class ListenTogetherManager @Inject constructor(
         
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             try {
-                if (isSyncing || !isHost || !isInRoom) return
+                if (isSyncing || (!isHost && !guestControlsEnabled.value) || !isInRoom) return
                 if (mediaItem == null) return
                 
                 val connection = playerConnection ?: return
@@ -218,7 +220,7 @@ class ListenTogetherManager @Inject constructor(
             reason: Int
         ) {
             try {
-                if (isSyncing || !isHost || !isInRoom) return
+                if (isSyncing || (!isHost && !guestControlsEnabled.value) || !isInRoom) return
                 
                 // Only send seek if it was a user-initiated seek
                 if (reason == Player.DISCONTINUITY_REASON_SEEK) {
@@ -258,8 +260,8 @@ class ListenTogetherManager @Inject constructor(
             
             // Set up playback blocking for guests
             connection?.shouldBlockPlaybackChanges = {
-                // Block if we're in a room as a guest (not host)
-                isInRoom && !isHost
+                // Block if we're in a room as a guest (not host) and guest controls are disabled
+                isInRoom && !isHost && !guestControlsEnabled.value
             }
             
             // Add listener if in room
@@ -276,8 +278,8 @@ class ListenTogetherManager @Inject constructor(
                 // Hook up skip actions
                 connection.onSkipPrevious = {
                     try {
-                        if (isHost && !isSyncing) {
-                            Timber.tag(TAG).d("Host Skip Previous triggered")
+                        if ((isHost || guestControlsEnabled.value) && !isSyncing) {
+                            Timber.tag(TAG).d("Skip Previous triggered")
                             client.sendPlaybackAction(PlaybackActions.SKIP_PREV)
                         }
                     } catch (e: Exception) {
@@ -286,8 +288,8 @@ class ListenTogetherManager @Inject constructor(
                 }
                 connection.onSkipNext = {
                 try {
-                        if (isHost && !isSyncing) {
-                            Timber.tag(TAG).d("Host Skip Next triggered")
+                        if ((isHost || guestControlsEnabled.value) && !isSyncing) {
+                            Timber.tag(TAG).d("Skip Next triggered")
                             client.sendPlaybackAction(PlaybackActions.SKIP_NEXT)
                         }
                     } catch (e: Exception) {
@@ -298,8 +300,8 @@ class ListenTogetherManager @Inject constructor(
                 // Hook up restart action
                 connection.onRestartSong = {
                     try {
-                        if (isHost && !isSyncing) {
-                            Timber.tag(TAG).d("Host Restart Song triggered (sending 1ms as 0ms workaround)")
+                        if ((isHost || guestControlsEnabled.value) && !isSyncing) {
+                            Timber.tag(TAG).d("Restart Song triggered (sending 1ms as 0ms workaround)")
                             client.sendPlaybackAction(PlaybackActions.SEEK, position = 1L)
                         }
                     } catch (e: Exception) {
@@ -309,14 +311,17 @@ class ListenTogetherManager @Inject constructor(
             }
 
             // Start/stop queue observation based on role
-            if (connection != null && isInRoom && isHost) {
+            if (connection != null && isInRoom && (isHost || guestControlsEnabled.value)) {
                 startQueueSyncObservation()
-                startHeartbeat()
                 startVolumeSyncObservation()
             } else {
                 stopQueueSyncObservation()
-                stopHeartbeat()
                 stopVolumeSyncObservation()
+            }
+            if (connection != null && isInRoom && isHost) {
+                startHeartbeat()
+            } else {
+                stopHeartbeat()
             }
             updateGuestMuteState()
         } catch (e: Exception) {
@@ -389,6 +394,28 @@ class ListenTogetherManager @Inject constructor(
                 }
             }
         }
+
+        // Guest controls listener
+        scope.launch {
+            guestControlsEnabled.collect { enabled ->
+                try {
+                    val connection = playerConnection
+                    if (connection != null && isInRoom) {
+                        if (isHost || enabled) {
+                            startQueueSyncObservation()
+                            startVolumeSyncObservation()
+                        } else {
+                            if (!isHost) {
+                                stopQueueSyncObservation()
+                                stopVolumeSyncObservation()
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Timber.tag(TAG).e(e, "Error in guest controls change handler")
+                }
+            }
+        }
     }
 
     private fun handleEvent(event: ListenTogetherEvent) {
@@ -456,12 +483,12 @@ class ListenTogetherManager @Inject constructor(
             
             is ListenTogetherEvent.PlaybackSync -> {
                 Timber.tag(TAG).d("PlaybackSync received: ${event.action.action}")
-                // Guests handle all sync actions. Host should also apply queue ops.
+                // Guests handle all sync actions. Host should also apply queue ops, or if guest controls are enabled, accept all syncs.
                 val actionType = event.action.action
                 val isQueueOp = actionType == PlaybackActions.QUEUE_ADD ||
                         actionType == PlaybackActions.QUEUE_REMOVE ||
                         actionType == PlaybackActions.QUEUE_CLEAR
-                if (!isHost || isQueueOp) {
+                if (!isHost || isQueueOp || guestControlsEnabled.value) {
                     handlePlaybackSync(event.action)
                 }
             }
@@ -507,6 +534,12 @@ class ListenTogetherManager @Inject constructor(
                 if (!isHost) {
                     handleSyncState(event.state)
                 }
+            }
+
+            is ListenTogetherEvent.ChatReceived -> {
+                // UI layer observes chatMessages Flow directly,
+                // but we optionally log it here.
+                Timber.tag(TAG).d("ChatReceived: ${event.message.username} said ${event.message.message}")
             }
             
             is ListenTogetherEvent.Kicked -> {
@@ -1512,7 +1545,7 @@ class ListenTogetherManager @Inject constructor(
                 }
                 ?.distinctUntilChanged()
                 ?.collectLatest { tracks ->
-                    if (!isHost || !isInRoom || isSyncing) return@collectLatest
+                    if ((!isHost && !guestControlsEnabled.value) || !isInRoom || isSyncing) return@collectLatest
                 
                     delay(500) // Debounce rapid playlist manipulations
                 
@@ -1539,7 +1572,7 @@ class ListenTogetherManager @Inject constructor(
         volumeObserverJob = scope.launch {
             playerConnection?.service?.playerVolume
                 ?.collectLatest { volume ->
-                    if (!isHost || !isInRoom || !syncHostVolumeEnabled.value) return@collectLatest
+                    if ((!isHost && !guestControlsEnabled.value) || !isInRoom || !syncHostVolumeEnabled.value) return@collectLatest
 
                     val normalized = volume.coerceIn(0f, 1f)
                     val last = lastSyncedVolume
@@ -1627,6 +1660,14 @@ class ListenTogetherManager @Inject constructor(
      */
     fun rejectSuggestion(suggestionId: String, reason: String? = null) = client.rejectSuggestion(suggestionId, reason)
     
+    /**
+     * Send a chat message to the room
+     */
+    fun sendChatMessage(message: String) {
+        if (!isInRoom) return
+        client.sendChatMessage(message)
+    }
+
     /**
      * Force reconnection to server (for manual recovery)
      */

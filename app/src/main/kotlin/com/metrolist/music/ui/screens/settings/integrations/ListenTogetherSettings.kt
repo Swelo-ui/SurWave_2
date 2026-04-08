@@ -81,6 +81,7 @@ import com.metrolist.music.constants.ListenTogetherAutoApprovalKey
 import com.metrolist.music.constants.ListenTogetherAutoApproveSuggestionsKey
 import com.metrolist.music.constants.ListenTogetherServerUrlKey
 import com.metrolist.music.constants.ListenTogetherSyncVolumeKey
+import com.metrolist.music.constants.ListenTogetherGuestControlsKey
 import com.metrolist.music.constants.ListenTogetherUsernameKey
 import com.metrolist.music.listentogether.ConnectionState
 import com.metrolist.music.listentogether.ListenTogetherEvent
@@ -121,6 +122,7 @@ fun ListenTogetherSettings(
     var autoApprovalJoins by rememberPreference(ListenTogetherAutoApprovalKey, false)
     var autoApproveSuggestions by rememberPreference(ListenTogetherAutoApproveSuggestionsKey, false)
     var syncHostVolume by rememberPreference(ListenTogetherSyncVolumeKey, true)
+    var guestControlsEnabled by rememberPreference(ListenTogetherGuestControlsKey, false)
 
     var showServerUrlDialog by rememberSaveable { mutableStateOf(false) }
     var showUsernameDialog by rememberSaveable { mutableStateOf(false) }
@@ -500,6 +502,30 @@ fun ListenTogetherSettings(
                                 )
                             },
                             onClick = { syncHostVolume = !syncHostVolume },
+                        ),
+                        IntegrationCardItem(
+                            icon = painterResource(R.drawable.done),
+                            title = { Text(stringResource(R.string.listen_together_guest_controls)) },
+                            description = {
+                                Text(stringResource(R.string.listen_together_guest_controls_desc))
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = guestControlsEnabled,
+                                    onCheckedChange = { guestControlsEnabled = it },
+                                    thumbContent = {
+                                        Icon(
+                                            painter =
+                                                painterResource(
+                                                    id = if (guestControlsEnabled) R.drawable.check else R.drawable.close,
+                                                ),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(SwitchDefaults.IconSize),
+                                        )
+                                    },
+                                )
+                            },
+                            onClick = { guestControlsEnabled = !guestControlsEnabled },
                         ),
                         IntegrationCardItem(
                             icon = painterResource(R.drawable.bug_report),

@@ -296,7 +296,8 @@ fun BottomSheetPlayer(
     // Listen Together state (reactive)
     val listenTogetherManager = LocalListenTogetherManager.current
     val listenTogetherRoleState = listenTogetherManager?.role?.collectAsState(initial = RoomRole.NONE)
-    val isListenTogetherGuest = listenTogetherRoleState?.value == RoomRole.GUEST
+    val listenTogetherGuestControlsEnabled by rememberPreference(com.metrolist.music.constants.ListenTogetherGuestControlsKey, false)
+    val isListenTogetherGuest = listenTogetherRoleState?.value == RoomRole.GUEST && !listenTogetherGuestControlsEnabled
 
     // Cast state - safely access castConnectionHandler to prevent crashes during service lifecycle changes
     val castHandler =

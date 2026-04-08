@@ -170,6 +170,9 @@ class MessageCodec(
             is TransferHostPayload -> Listentogether.TransferHostPayload.newBuilder()
                 .setNewHostId(payload.newHostId)
                 .build()
+            is ChatPayload -> Listentogether.ChatPayload.newBuilder()
+                .setMessage(payload.message)
+                .build()
             else -> throw IllegalArgumentException("Unsupported payload type: ${payload::class.simpleName}")
         }
     }
@@ -298,6 +301,10 @@ class MessageCodec(
             MessageTypes.SUGGESTION_REJECTED -> {
                 val pb = Listentogether.SuggestionRejectedPayload.parseFrom(payloadBytes)
                 SuggestionRejectedPayload(pb.suggestionId, pb.reason.takeIf { it.isNotEmpty() })
+            }
+            MessageTypes.CHAT -> {
+                val pb = Listentogether.ChatMessagePayload.parseFrom(payloadBytes)
+                ChatMessagePayload(pb.userId, pb.username, pb.message, pb.timestamp)
             }
             else -> null
         }

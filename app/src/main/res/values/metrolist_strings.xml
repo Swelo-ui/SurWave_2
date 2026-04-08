@@ -216,7 +216,7 @@
     <string name="release_notes">Release notes</string>
     <string name="changelog">Changelog</string>
     <string name="changelog_empty">No changelogs available</string>
-    <string name="github_releases_url">https://github.com/MetrolistGroup/Metrolist/releases</string>
+    <string name="github_releases_url">https://github.com/Swelo-ui/SurWave_2/releases</string>
     <string name="list_bullet">•</string>
     <string name="view_on_github">View on GitHub</string>
     <string name="current_version">Current version</string>
@@ -540,8 +540,8 @@
     <!-- Decryption Library Settings -->
 
     <!-- Listen Together -->
-    <string name="together">Together</string>
-    <string name="listen_together">Listen Together</string>
+    <string name="together">SurParty</string>
+    <string name="listen_together">SurParty</string>
     <string name="listen_together_server_url">Server URL</string>
     <string name="listen_together_choose_server">Choose server</string>
     <string name="listen_together_custom_server">Custom server</string>
@@ -571,9 +571,11 @@
     <string name="listen_together_auto_approval_suggestions_desc">Automatically approve and queue song suggestions from guests</string>
     <string name="listen_together_sync_volume">Sync host volume</string>
     <string name="listen_together_sync_volume_desc">Guests follow the host volume level</string>
+    <string name="listen_together_guest_controls">Shared controls</string>
+    <string name="listen_together_guest_controls_desc">Allow guests to control playback and queue in real-time</string>
     <string name="listen_together_in_top_bar">Listen Together in top bar</string>
     <string name="listen_together_in_top_bar_desc">Show Listen Together in top app bar instead of navigation bar</string>
-    <string name="listen_together_description">Listen to music with your friends in real-time. Create a room to be the host or join an existing room with a code.</string>
+    <string name="listen_together_description">Listen with unlimited friends in real-time, anywhere in the world. Host controls playback. Everyone hears the same beat at the same time. Chat while listening. No premium required.</string>
     <string name="listen_together_background_disconnect_note">Note: You may get disconnected if you create a room while no music is playing and then switch to another app.</string>
     <string name="listen_together_not_configured">Listen Together is not configured. Please set up the server URL in Settings → Integrations → Listen Together.</string>
     <string name="listen_together_suggestion_received">%1$s requested %2$s</string>
@@ -631,6 +633,26 @@
     <string name="listen_together_no_blocked_users">No blocked users</string>
     <string name="unblock">Unblock</string>
     <string name="user_blocked_by_host">User blocked by host</string>
+    <string name="chat">Chat</string>
+    <string name="type_message">Type a message…</string>
+    <string name="send">Send</string>
+    <string name="chat_requires_two_users">Chat unlocks when another person joins.</string>
+
+    <!-- SurParty -->
+    <string name="surparty_room_not_found">Room not found. Check the code and try again.</string>
+    <string name="surparty_connection_error">Connection error. Please check your internet.</string>
+
+    <!-- SurParty Instructions -->
+    <string name="surparty_instructions_title">How to use SurParty</string>
+    <string name="surparty_step_1_title">Create a Room</string>
+    <string name="surparty_step_1_desc">As a host, enter your username and create a room. A unique 8-character Room Code will be generated.</string>
+    <string name="surparty_step_2_title">Share the Code</string>
+    <string name="surparty_step_2_desc">Copy the Room Code and share it with your friends.</string>
+    <string name="surparty_step_3_title">Friends Join</string>
+    <string name="surparty_step_3_desc">Your friends open SurParty, enter the Room Code and their name, and request to join.</string>
+    <string name="surparty_step_4_title">Approve &amp; Listen</string>
+    <string name="surparty_step_4_desc">Approve their request. Once connected, everyone listens to the same music in real-time and can chat!</string>
+
 
     <!-- AI Lyrics Translation -->
     <string name="ai_lyrics_translation">AI Lyrics Translation</string>
@@ -704,6 +726,14 @@
     <string name="palette_brown">Brown</string>
     <string name="palette_grey">Grey</string>
     <string name="palette_blue_grey">Blue Grey</string>
+
+    <!-- Curated Theme Names -->
+    <string name="surwave_themes_section">Curated Themes</string>
+    <string name="palette_velvet_noir">Velvet Noir</string>
+    <string name="palette_ember_pulse">Ember Pulse</string>
+    <string name="palette_aqua_soul">Aqua Soul</string>
+    <string name="palette_forest_echo">Forest Echo</string>
+    <string name="palette_sakura_wave">Sakura Wave</string>
 
     <!-- Theme Content Descriptions -->
     <string name="cd_back">Back</string>
