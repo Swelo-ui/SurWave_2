@@ -477,7 +477,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
+        val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.ON)
         val isSystemInDarkTheme = isSystemInDarkTheme()
         val useDarkTheme =
             remember(darkTheme, isSystemInDarkTheme) {
@@ -488,7 +488,7 @@ class MainActivity : ComponentActivity() {
             setSystemBarAppearance(useDarkTheme)
         }
 
-        val pureBlackEnabled by rememberPreference(PureBlackKey, defaultValue = false)
+        val pureBlackEnabled by rememberPreference(PureBlackKey, defaultValue = true)
         val pureBlack =
             remember(pureBlackEnabled, useDarkTheme) {
                 pureBlackEnabled && useDarkTheme
@@ -498,7 +498,7 @@ class MainActivity : ComponentActivity() {
         val selectedThemeColor = Color(selectedThemeColorInt)
 
         // Curated theme preference — overrides MaterialKolor generation with exact colors
-        val (selectedCuratedThemeKey) = rememberPreference(SelectedCuratedThemeKey, defaultValue = "")
+        val (selectedCuratedThemeKey) = rememberPreference(SelectedCuratedThemeKey, defaultValue = "aqua_soul")
         val curatedSchemePair = remember(selectedCuratedThemeKey) {
             getCuratedColorScheme(selectedCuratedThemeKey)
         }

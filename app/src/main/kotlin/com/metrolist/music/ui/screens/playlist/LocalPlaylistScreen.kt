@@ -915,10 +915,9 @@ fun LocalPlaylistHeader(
             }
         }
 
-    val (darkMode, _) =
-        rememberEnumPreference(
+        val (darkMode, _) = rememberEnumPreference(
             DarkModeKey,
-            defaultValue = DarkMode.AUTO,
+            DarkMode.ON
         )
 
     val cropColor = MaterialTheme.colorScheme
