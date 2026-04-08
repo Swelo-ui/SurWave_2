@@ -734,6 +734,8 @@
     <string name="palette_aqua_soul">Aqua Soul</string>
     <string name="palette_forest_echo">Forest Echo</string>
     <string name="palette_sakura_wave">Sakura Wave</string>
+    <string name="palette_mint_groove">Mint Groove</string>
+    <string name="palette_royal_gold">Royal Gold</string>
 
     <!-- Theme Content Descriptions -->
     <string name="cd_back">Back</string>

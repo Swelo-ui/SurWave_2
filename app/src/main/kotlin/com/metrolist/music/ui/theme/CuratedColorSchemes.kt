@@ -265,6 +265,70 @@ val SakuraWaveLight = buildScheme(
 )
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Theme 6 — Mint Groove  (Spotify Green · fresh / upbeat)
+// ──────────────────────────────────────────────────────────────────────────────
+
+val MintGrooveDark = buildScheme(
+    background  = Color(0xFF031006),
+    surface     = Color(0xFF061A0A),
+    primary     = Color(0xFF1DB954),
+    secondary   = Color(0xFF4ADE80),
+    onPrimary   = Color(0xFF002B0F),
+    onBackground = Color(0xFFF0FFF5),
+    onSurface   = Color(0xFFF0FFF5),
+    onSurfaceVar= Color(0xFF4ADE80),
+    surfaceVar  = Color(0xFF0A2B12),
+    surfaceCont = Color(0xFF0A2B12),
+    outline     = Color(0xFF14853B).copy(alpha = 0.6f).compositeOver(Color(0xFF061A0A)),
+)
+
+val MintGrooveLight = buildScheme(
+    background  = Color(0xFFF0FFF5),
+    surface     = Color(0xFFD3FBDF),
+    primary     = Color(0xFF1DB954),
+    secondary   = Color(0xFF16A34A),
+    onPrimary   = Color(0xFFFFFFFF),
+    onBackground = Color(0xFF00260F),
+    onSurface   = Color(0xFF00260F),
+    onSurfaceVar= Color(0xFF107333),
+    surfaceVar  = Color(0xFFB1F5C6),
+    surfaceCont = Color(0xFFB1F5C6),
+    outline     = Color(0xFF1DB954),
+)
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Theme 7 — Royal Gold  (Gold / Yellow · premium / luxury)
+// ──────────────────────────────────────────────────────────────────────────────
+
+val RoyalGoldDark = buildScheme(
+    background  = Color(0xFF141000),
+    surface     = Color(0xFF261E00),
+    primary     = Color(0xFFFFB300),
+    secondary   = Color(0xFFFFC107),
+    onPrimary   = Color(0xFF332300),
+    onBackground = Color(0xFFFFFBFA),
+    onSurface   = Color(0xFFFFFBFA),
+    onSurfaceVar= Color(0xFFFFCA28),
+    surfaceVar  = Color(0xFF3D3200),
+    surfaceCont = Color(0xFF3D3200),
+    outline     = Color(0xFFB37D00).copy(alpha = 0.6f).compositeOver(Color(0xFF261E00)),
+)
+
+val RoyalGoldLight = buildScheme(
+    background  = Color(0xFFFFFDF5),
+    surface     = Color(0xFFFFF2C2),
+    primary     = Color(0xFFFF9800),
+    secondary   = Color(0xFFF57C00),
+    onPrimary   = Color(0xFFFFFFFF),
+    onBackground = Color(0xFF332300),
+    onSurface   = Color(0xFF332300),
+    onSurfaceVar= Color(0xFFB36B00),
+    surfaceVar  = Color(0xFFFFE599),
+    surfaceCont = Color(0xFFFFE599),
+    outline     = Color(0xFFFFB300),
+)
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Registry — map theme key to dark/light pair
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -276,5 +340,7 @@ fun getCuratedColorScheme(key: String): Pair<ColorScheme, ColorScheme>? =
         "aqua_soul"    -> AquaSoulDark    to AquaSoulLight
         "forest_echo"  -> ForestEchoDark  to ForestEchoLight
         "sakura_wave"  -> SakuraWaveDark  to SakuraWaveLight
+        "mint_groove"  -> MintGrooveDark  to MintGrooveLight
+        "royal_gold"   -> RoyalGoldDark   to RoyalGoldLight
         else           -> null
     }

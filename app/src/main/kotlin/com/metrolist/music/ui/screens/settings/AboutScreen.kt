@@ -470,12 +470,12 @@ fun AboutScreen(
             Spacer(Modifier.height(32.dp))
             
             Text(
-                text = "Built with ❤️ for Madhav , who believed in me.",
-                style = MaterialTheme.typography.labelLarge,
+                text = "Built with ❤️ for Madhav, who believed in me.",
+                style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 24.dp)
+                modifier = Modifier.padding(horizontal = 4.dp)
             )
             
             Spacer(Modifier.height(40.dp))

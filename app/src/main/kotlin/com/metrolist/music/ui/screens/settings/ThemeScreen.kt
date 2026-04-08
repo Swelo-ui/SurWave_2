@@ -125,6 +125,8 @@ val CuratedPalettes = listOf(
     ThemePalette(R.string.palette_aqua_soul,    Color(0xFF06B6D4)), // Cyan — chill & creative
     ThemePalette(R.string.palette_forest_echo,  Color(0xFF4ADE80)), // Green — organic & indie
     ThemePalette(R.string.palette_sakura_wave,  Color(0xFFFB7185)), // Rose-Red — emotional & romantic
+    ThemePalette(R.string.palette_mint_groove,  Color(0xFF1DB954)), // Spotify Green / Mint — upbeat
+    ThemePalette(R.string.palette_royal_gold,   Color(0xFFFFB300)), // Gold / Yellow — premium
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -465,6 +467,8 @@ fun ThemeControls(
                                     R.string.palette_aqua_soul  -> "aqua_soul"
                                     R.string.palette_forest_echo -> "forest_echo"
                                     R.string.palette_sakura_wave -> "sakura_wave"
+                                    R.string.palette_mint_groove -> "mint_groove"
+                                    R.string.palette_royal_gold -> "royal_gold"
                                     else -> ""
                                 }
                                 onCuratedThemeKeyChange(key, palette.seedColor)
