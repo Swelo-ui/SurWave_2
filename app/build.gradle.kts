@@ -33,8 +33,8 @@ android {
         applicationId = applicationIdOverride ?: baseApplicationId
         minSdk = 26
         targetSdk = 36
-        versionCode = 144
-        versionName = "13.3.1"
+        versionCode = 143
+        versionName = "13.3.0"
         // app_name is defined in metrolist_strings.xml; only override via env var when explicitly set
         appNameOverride?.let { resValue("string", "app_name", it) }
 
