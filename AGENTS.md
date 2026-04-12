@@ -40,3 +40,4 @@ SurWave is a 3rd party YouTube Music client written in Kotlin. It follows materi
 
 2. If the build is not successful, review the error messages, fix the issues in your code, and try building again.
 3. Once the build is successful, you can test your changes on an emulator or a physical device. Install the generated APK located at `app/build/outputs/apk/universalFoss/debug/app-universal-foss-debug.apk` and ask a human for help testing the specific features you worked on.
+allow bump the version of apk if you think it is needed.

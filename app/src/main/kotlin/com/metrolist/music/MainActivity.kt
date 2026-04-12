@@ -173,6 +173,7 @@ import com.metrolist.music.ui.menu.YouTubeSongMenu
 import com.metrolist.music.ui.player.BottomSheetPlayer
 import com.metrolist.music.ui.screens.Screens
 import com.metrolist.music.ui.screens.navigationBuilder
+import com.metrolist.music.ui.component.UpdateDialog
 import com.metrolist.music.ui.screens.settings.ChangelogScreen
 import com.metrolist.music.ui.screens.settings.DarkMode
 import com.metrolist.music.ui.screens.settings.NavigationTab
@@ -397,44 +398,27 @@ class MainActivity : ComponentActivity() {
     ) {
         val checkForUpdates by rememberPreference(CheckForUpdatesKey, defaultValue = true)
 
+        // State that drives the in-app update dialog
+        var showUpdateDialog by remember { mutableStateOf(false) }
+        var updateReleaseInfo by remember { mutableStateOf<com.metrolist.music.utils.ReleaseInfo?>(null) }
+        var updateDownloadUrl by remember { mutableStateOf<String?>(null) }
+
         if (BuildConfig.UPDATER_AVAILABLE) {
             LaunchedEffect(checkForUpdates) {
                 if (checkForUpdates) {
                     withContext(Dispatchers.IO) {
                         val updatesEnabled = dataStore.get(CheckForUpdatesKey, true)
-                        val notifEnabled = dataStore.get(UpdateNotificationsEnabledKey, true)
                         if (!updatesEnabled) return@withContext
 
                         Updater.checkForUpdate().onSuccess { (releaseInfo, hasUpdate) ->
                             if (releaseInfo != null) {
                                 onLatestVersionNameChange(releaseInfo.versionName)
-                                if (hasUpdate && notifEnabled) {
-                                    // Use direct APK URL if available, otherwise open SurWave releases page
-                                    val downloadUrl = Updater.getDownloadUrlForCurrentVariant(releaseInfo)
-                                    val targetUrl = downloadUrl
-                                        ?: "https://github.com/Swelo-ui/SurWave_2/releases/latest"
-                                    val intent = Intent(Intent.ACTION_VIEW, targetUrl.toUri())
-
-                                    val flags =
-                                        PendingIntent.FLAG_UPDATE_CURRENT or
-                                            (PendingIntent.FLAG_IMMUTABLE)
-                                    val pending = PendingIntent.getActivity(this@MainActivity, 1001, intent, flags)
-
-                                    val notif =
-                                        NotificationCompat
-                                            .Builder(this@MainActivity, "updates")
-                                            .setSmallIcon(R.drawable.update)
-                                            .setContentTitle(getString(R.string.update_available_title))
-                                            .setContentText(releaseInfo.versionName)
-                                            .setContentIntent(pending)
-                                            .setAutoCancel(true)
-                                            .build()
-
-                                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-                                        ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.POST_NOTIFICATIONS) ==
-                                        PackageManager.PERMISSION_GRANTED
-                                    ) {
-                                        NotificationManagerCompat.from(this@MainActivity).notify(1001, notif)
+                                if (hasUpdate) {
+                                    // Surface update to composable state on the main thread
+                                    withContext(Dispatchers.Main) {
+                                        updateReleaseInfo = releaseInfo
+                                        updateDownloadUrl = Updater.getDownloadUrlForCurrentVariant(releaseInfo)
+                                        showUpdateDialog = true
                                     }
                                 }
                             }
@@ -1241,6 +1225,17 @@ class MainActivity : ComponentActivity() {
                             },
                             latestVersionName = latestVersionName,
                         )
+                    }
+
+                    // In-app update dialog — shown automatically when a new version is found
+                    if (showUpdateDialog) {
+                        updateReleaseInfo?.let { releaseInfo ->
+                            UpdateDialog(
+                                releaseInfo = releaseInfo,
+                                downloadUrl = updateDownloadUrl,
+                                onDismiss = { showUpdateDialog = false },
+                            )
+                        }
                     }
 
                     sharedSong?.let { song ->
