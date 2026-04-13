@@ -188,7 +188,7 @@ fun LocalPlaylistScreen(
             PlaylistSongSortDescendingKey,
             true,
         )
-    var locked by rememberPreference(PlaylistEditLockKey, defaultValue = true)
+    val locked = false
 
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -535,17 +535,6 @@ fun LocalPlaylistScreen(
                                 },
                                 modifier = Modifier.weight(1f),
                             )
-                            if (editable) {
-                                IconButton(
-                                    onClick = { locked = !locked },
-                                    modifier = Modifier.padding(horizontal = 6.dp),
-                                ) {
-                                    Icon(
-                                        painter = painterResource(if (locked) R.drawable.lock else R.drawable.lock_open),
-                                        contentDescription = null,
-                                    )
-                                }
-                            }
                         }
                     }
                 }
