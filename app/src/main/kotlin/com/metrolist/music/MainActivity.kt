@@ -320,7 +320,6 @@ class MainActivity : ComponentActivity() {
         // the service persists independently of binding state on all Android versions, including
         // Android 16+ where startService() from background contexts is not allowed.
         ContextCompat.startForegroundService(this, Intent(this, MusicService::class.java))
-        safeBindService("onStart()")
     }
 
     override fun onStop() {
@@ -339,7 +338,6 @@ class MainActivity : ComponentActivity() {
         // Full cleanup - only on actual destroy
         playerConnection?.dispose()
         playerConnection = null
-        playerConnectionSnapshot = null
 
         // Unbind before stopService: a started+bound service does not stop until all clients unbind.
         safeUnbindService("onDestroy()")

@@ -846,6 +846,7 @@
     <string name="randomize_home_order_desc">Randomly reorder home screen sections with weighted priorities</string>
 
     <!-- Daily Discover -->
+    <string name="your_daily_discover">Your Daily Discover</string>
     <string name="daily_discover_sounds_like">Sounds like %1$s</string>
     <string name="daily_discover_because_you_listen_to">Because you listen to %1$s</string>
     <string name="daily_discover_similar_to">Similar to %1$s</string>

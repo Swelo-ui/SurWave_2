@@ -120,10 +120,13 @@ class ListenTogetherManager
         val events = client.events
         val blockedUsernames = client.blockedUsernames
         val pendingSuggestions = client.pendingSuggestions
+        val chatMessages = client.chatMessages
 
         val isInRoom: Boolean get() = client.isInRoom
         val isHost: Boolean get() = client.isHost
         val hasPersistedSession: Boolean get() = client.hasPersistedSession
+
+        fun sendChatMessage(message: String) = client.sendChatMessage(message)
 
         private val playerListener =
             object : Player.Listener {

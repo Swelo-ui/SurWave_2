@@ -3092,7 +3092,6 @@ class MusicService :
         // or we can't easily reference the specific processor created in createExoPlayer here without storing it.
         // But since we are destroying the service, it's fine.
         player.release()
-        discordUpdateJob?.cancel()
         scope.cancel()
         super.onDestroy()
     }
