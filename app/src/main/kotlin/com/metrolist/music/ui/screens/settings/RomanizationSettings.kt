@@ -31,7 +31,6 @@ import androidx.navigation.NavController
 import com.metrolist.music.LocalPlayerAwareWindowInsets
 import com.metrolist.music.R
 import com.metrolist.music.constants.LyricsRomanizeAsMainKey
-import com.metrolist.music.constants.LyricsRomanizeCyrillicByLineKey
 import com.metrolist.music.constants.LyricsRomanizeList
 import com.metrolist.music.ui.component.IconButton
 import com.metrolist.music.ui.component.Material3SettingsGroup
@@ -88,11 +87,6 @@ fun RomanizationSettings(
         defaultValue = false
     )
 
-    val (lyricsRomanizeCyrillicByLine, onLyricsRomanizeCyrillicByLineChange) = rememberPreference(
-        LyricsRomanizeCyrillicByLineKey,
-        defaultValue = false
-    )
-
     val checkboxesList: MutableList<Material3SettingsItem> = mutableListOf()
 
     Column(
@@ -113,16 +107,6 @@ fun RomanizationSettings(
                         )
                     },
                     icon = painterResource(R.drawable.queue_music)
-                ),
-                Material3SettingsItem(
-                    title = { Text(stringResource(R.string.line_by_line_option_title)) },
-                    trailingContent = {
-                        Switch(
-                            checked = lyricsRomanizeCyrillicByLine,
-                            onCheckedChange = onLyricsRomanizeCyrillicByLineChange,
-                        )
-                    },
-                    icon = painterResource(R.drawable.info)
                 )
             )
         )

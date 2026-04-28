@@ -12,8 +12,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
-val LINE_REGEX = "((\\[\\d\\d:\\d\\d\\.\\d{2,3}\\] ?)+)(.*)".toRegex()
-val TIME_REGEX = "\\[(\\d\\d):(\\d\\d)\\.(\\d{2,3})\\]".toRegex()
+@Suppress("RegExpRedundantEscape")
+object LyricsUtils {
+    val LINE_REGEX = "((\\[\\d{1,2}:\\d\\d(?:\\.\\d{2,3})?\\] ?)+)(.*)".toRegex()
+    val TIME_REGEX = "\\[(\\d{1,2}):(\\d\\d)(?:\\.(\\d{2,3}))?\\]".toRegex()
 
 // Regex for rich sync format: [MM:SS.mm]<MM:SS.mm> word <MM:SS.mm> word ...
 private val RICH_SYNC_LINE_REGEX = "\\[(\\d{1,2}):(\\d{2})\\.(\\d{2,3})\\](.*)".toRegex()
@@ -774,7 +776,7 @@ object LyricsUtils {
                 val min = timeMatchResult.groupValues[1].toLong()
                 val sec = timeMatchResult.groupValues[2].toLong()
                 val milString = timeMatchResult.groupValues[3]
-                var mil = milString.toLong()
+                var mil = milString.toLongOrNull() ?: 0L
                 if (milString.length == 2) {
                     mil *= 10
                 }

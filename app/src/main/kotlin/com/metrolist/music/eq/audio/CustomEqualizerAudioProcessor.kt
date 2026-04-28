@@ -5,10 +5,14 @@ import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.util.UnstableApi
 import com.metrolist.music.eq.data.ParametricEQ
 import com.metrolist.music.eq.data.ParametricEQBand
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import timber.log.Timber
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.pow
+import kotlin.math.sqrt
 
 /**
  * Custom audio processor for ExoPlayer that applies parametric EQ using biquad filters
@@ -24,7 +28,6 @@ class CustomEqualizerAudioProcessor : AudioProcessor {
     private var isActive = false
     private var equalizerEnabled = false
 
-    private var inputBuffer: ByteBuffer = EMPTY_BUFFER
     private var outputBuffer: ByteBuffer = EMPTY_BUFFER
     private var inputEnded = false
 
@@ -36,6 +39,11 @@ class CustomEqualizerAudioProcessor : AudioProcessor {
         private const val TAG = "CustomEqualizerAudioProcessor"
         private val EMPTY_BUFFER: ByteBuffer = ByteBuffer.allocateDirect(0).order(ByteOrder.nativeOrder())
     }
+
+    // Exposes the current audio amplitude level (0f = silent, 1f = max)
+    // Updated after each processed audio chunk so the UI can react to music
+    private val _currentLevel = MutableStateFlow(0f)
+    val currentLevel: StateFlow<Float> = _currentLevel.asStateFlow()
 
     /**
      * Apply an EQ profile
@@ -145,7 +153,7 @@ class CustomEqualizerAudioProcessor : AudioProcessor {
             if (remaining == 0) return
 
             // Ensure output buffer is large enough
-            if (outputBuffer.capacity() < remaining) {
+            if (outputBuffer === EMPTY_BUFFER || outputBuffer.capacity() < remaining) {
                 outputBuffer = ByteBuffer.allocateDirect(remaining).order(ByteOrder.nativeOrder())
             } else {
                 outputBuffer.clear()
@@ -163,21 +171,16 @@ class CustomEqualizerAudioProcessor : AudioProcessor {
         // Ensure we have our own output buffer (reuse if possible to avoid allocations)
         // Note: We MUST NOT use inputBuffer as outputBuffer if we modify it
         if (outputBuffer === EMPTY_BUFFER || outputBuffer === inputBuffer) {
-            // Need new buffer - was empty or same as input
             outputBuffer = ByteBuffer.allocateDirect(inputSize).order(ByteOrder.nativeOrder())
         } else if (outputBuffer.capacity() < inputSize) {
-            // Need larger buffer
             outputBuffer = ByteBuffer.allocateDirect(inputSize).order(ByteOrder.nativeOrder())
         } else {
-            // Reuse existing buffer (most common path)
             outputBuffer.clear()
         }
 
         // Process audio samples
         when (encoding) {
             C.ENCODING_PCM_16BIT -> {
-                // Ensure the output buffer is ready to receive data
-                // We don't set limit() here because putShort will advance position
                 processAudioBuffer16Bit(inputBuffer, outputBuffer)
             }
             else -> {
@@ -187,7 +190,24 @@ class CustomEqualizerAudioProcessor : AudioProcessor {
         }
 
         outputBuffer.flip()
-        // inputBuffer position is already updated by processAudioBuffer16Bit/put
+
+        // Compute and emit the RMS amplitude of the processed output
+        _currentLevel.value = computeRmsLevel(outputBuffer.duplicate())
+    }
+
+    /**
+     * Computes the RMS (root-mean-square) level of a 16-bit PCM buffer.
+     * Returns a value in [0f, 1f] where 1f is the maximum possible amplitude.
+     */
+    private fun computeRmsLevel(buffer: ByteBuffer): Float {
+        if (buffer.remaining() < 2) return 0f
+        var sumOfSquares = 0.0
+        val sampleCount = buffer.remaining() / 2
+        repeat(sampleCount) {
+            val sample = buffer.getShort().toDouble() / 32768.0
+            sumOfSquares += sample * sample
+        }
+        return sqrt(sumOfSquares / sampleCount).toFloat().coerceIn(0f, 1f)
     }
 
     /**
@@ -278,7 +298,6 @@ class CustomEqualizerAudioProcessor : AudioProcessor {
     override fun reset() {
         @Suppress("DEPRECATION")
         flush()
-        inputBuffer = EMPTY_BUFFER
         sampleRate = 0
         channelCount = 0
         encoding = C.ENCODING_INVALID

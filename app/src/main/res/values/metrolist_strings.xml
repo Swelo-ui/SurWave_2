@@ -145,6 +145,8 @@
     <string name="lyrics_provider_selection_desc">Choose which lyrics providers are enabled</string>
     <string name="auto_scroll">Re-sync</string>
     <string name="slim">Slim</string>
+    <string name="gradient_slider">Gradient</string>
+    <string name="neon_slider">Neon</string>
     <string name="slim_navbar">Slim bottom navigation bar</string>
     <string name="auto_playlists">Auto playlists</string>
     <string name="show_liked_playlist">Show \"Liked\" playlist</string>

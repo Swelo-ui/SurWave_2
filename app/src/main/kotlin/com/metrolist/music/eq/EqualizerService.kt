@@ -7,6 +7,9 @@ import androidx.media3.common.util.UnstableApi
 import com.metrolist.music.eq.audio.CustomEqualizerAudioProcessor
 import com.metrolist.music.eq.data.ParametricEQ
 import com.metrolist.music.eq.data.SavedEQProfile
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -23,9 +26,26 @@ class EqualizerService @Inject constructor() {
     private var pendingProfile: SavedEQProfile? = null
     private var shouldDisable: Boolean = false
 
+    // Reference to the primary audio processor so callers can observe its audio level.
+    // This is set to the first processor registered and cleared on release.
+    @OptIn(UnstableApi::class)
+    private var primaryProcessor: CustomEqualizerAudioProcessor? = null
+
     companion object {
         private const val TAG = "EqualizerService"
     }
+
+    /**
+     * Real-time audio amplitude level (0f = silent, 1f = max).
+     * Delegates to the primary audio processor's level, falling back to a zero flow
+     * when no processor is registered.  Collect this in the UI to animate effects
+     * (e.g. the NeonSlider) in sync with the currently-playing audio.
+     */
+    @OptIn(UnstableApi::class)
+    val audioLevel: StateFlow<Float>
+        get() = primaryProcessor?.currentLevel ?: _emptyLevel
+
+    private val _emptyLevel = MutableStateFlow(0f).asStateFlow()
 
     /**
      * Add an audio processor instance
@@ -35,6 +55,11 @@ class EqualizerService @Inject constructor() {
     fun addAudioProcessor(processor: CustomEqualizerAudioProcessor) {
         audioProcessors.add(processor)
         Timber.tag(TAG).d("Audio processor added. Total: ${audioProcessors.size}")
+
+        // Track the first registered processor as the primary amplitude source
+        if (primaryProcessor == null) {
+            primaryProcessor = processor
+        }
 
         // Apply pending profile if one was set before processor was available
         if (shouldDisable) {
@@ -50,8 +75,12 @@ class EqualizerService @Inject constructor() {
     /**
      * Remove an audio processor instance
      */
+    @OptIn(UnstableApi::class)
     fun removeAudioProcessor(processor: CustomEqualizerAudioProcessor) {
         audioProcessors.remove(processor)
+        if (primaryProcessor === processor) {
+            primaryProcessor = audioProcessors.firstOrNull()
+        }
     }
 
     /**
@@ -149,9 +178,11 @@ class EqualizerService @Inject constructor() {
     /**
      * Release resources (not needed for AudioProcessor, but kept for API compatibility)
      */
+    @OptIn(UnstableApi::class)
     fun release() {
         // AudioProcessor is managed by ExoPlayer, we just clear our reference
         audioProcessors.clear()
+        primaryProcessor = null
         Timber.tag(TAG).d("Audio processor references cleared")
     }
 }

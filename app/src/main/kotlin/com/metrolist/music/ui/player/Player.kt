@@ -165,6 +165,8 @@ import com.metrolist.music.ui.component.LocalBottomSheetPageState
 import com.metrolist.music.ui.component.LocalMenuState
 import com.metrolist.music.ui.component.Lyrics
 import com.metrolist.music.ui.component.PlayerSliderTrack
+import com.metrolist.music.ui.component.GradientSlider
+import com.metrolist.music.ui.component.NeonSlider
 import com.metrolist.music.ui.component.ResizableIconButton
 import com.metrolist.music.ui.component.SquigglySlider
 import com.metrolist.music.ui.component.WavySlider
@@ -173,6 +175,7 @@ import com.metrolist.music.ui.menu.PlayerMenu
 import com.metrolist.music.ui.screens.settings.DarkMode
 import com.metrolist.music.ui.theme.PlayerColorExtractor
 import com.metrolist.music.ui.theme.PlayerSliderColors
+import com.metrolist.music.ui.theme.extractGradientColors
 import com.metrolist.music.ui.utils.ShowMediaInfo
 import com.metrolist.music.ui.utils.ShowOffsetDialog
 import com.metrolist.music.utils.dataStore
@@ -322,7 +325,7 @@ fun BottomSheetPlayer(
     val canSkipNext by playerConnection.canSkipNext.collectAsState()
     val isMuted by playerConnection.isMuted.collectAsState()
 
-    val sliderStyle by rememberEnumPreference(SliderStyleKey, SliderStyle.DEFAULT)
+    val sliderStyle by rememberEnumPreference(SliderStyleKey, SliderStyle.WAVY)
     val squigglySlider by rememberPreference(SquigglySliderKey, defaultValue = false)
 
     // Listen Together state (reactive)
@@ -378,6 +381,14 @@ fun BottomSheetPlayer(
     }
     val gradientColorsCache = remember { mutableMapOf<String, List<Color>>() }
 
+    // Album colours for the GradientSlider track — extracted independently of the
+    // player background style so the slider always matches the current album art.
+    var sliderAlbumColors by remember { mutableStateOf<List<Color>>(emptyList()) }
+    val sliderAlbumColorsCache = remember { mutableMapOf<String, List<Color>>() }
+
+    // Real-time audio amplitude for the NeonSlider beat-sync effect
+    val audioLevel by playerConnection.service.equalizerService.audioLevel.collectAsState()
+
     if (!canSkipNext && automix.isNotEmpty()) {
         playerConnection.service.addToQueueAutomix(automix[0], 0)
     }
@@ -429,6 +440,36 @@ fun BottomSheetPlayer(
             }
         } else {
             gradientColors = emptyList()
+        }
+    }
+
+    // Extract album colours for the GradientSlider whenever the song changes,
+    // regardless of what player background style is selected.
+    LaunchedEffect(mediaMetadata?.id) {
+        val currentMetadata = mediaMetadata
+        if (currentMetadata == null || currentMetadata.thumbnailUrl == null) {
+            sliderAlbumColors = emptyList()
+            return@LaunchedEffect
+        }
+        val cached = sliderAlbumColorsCache[currentMetadata.id]
+        if (cached != null) {
+            sliderAlbumColors = cached
+            return@LaunchedEffect
+        }
+        withContext(Dispatchers.IO) {
+            val request = ImageRequest.Builder(context)
+                .data(currentMetadata.thumbnailUrl)
+                .size(64, 64)
+                .allowHardware(false)
+                .memoryCacheKey("slider_${currentMetadata.id}")
+                .build()
+            val result = runCatching { context.imageLoader.execute(request) }.getOrNull()
+            val bitmap = result?.image?.toBitmap()
+            if (bitmap != null) {
+                val extracted = bitmap.extractGradientColors()
+                sliderAlbumColorsCache[currentMetadata.id] = extracted
+                withContext(Dispatchers.Main) { sliderAlbumColors = extracted }
+            }
         }
     }
 
@@ -1431,6 +1472,67 @@ fun BottomSheetPlayer(
                             )
                         },
                         modifier = Modifier.padding(horizontal = PlayerHorizontalPadding),
+                    )
+                }
+
+                SliderStyle.GRADIENT -> {
+                    GradientSlider(
+                        value = (sliderPosition ?: effectivePosition).toFloat(),
+                        valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
+                        onValueChange = {
+                            if (!isListenTogetherGuest) {
+                                sliderPosition = it.toLong()
+                            }
+                        },
+                        onValueChangeFinished = {
+                            if (!isListenTogetherGuest) {
+                                sliderPosition?.let {
+                                    if (isCasting) {
+                                        castHandler?.seekTo(it)
+                                        lastManualSeekTime = System.currentTimeMillis()
+                                    } else {
+                                        playerConnection.player.seekTo(it)
+                                    }
+                                    position = it
+                                }
+                                sliderPosition = null
+                            }
+                        },
+                        enabled = !isListenTogetherGuest,
+                        colors = PlayerSliderColors.getSliderColors(textButtonColor, playerBackground, useDarkTheme),
+                        modifier = Modifier.padding(horizontal = PlayerHorizontalPadding),
+                        albumColors = sliderAlbumColors,
+                    )
+                }
+
+                SliderStyle.NEON -> {
+                    NeonSlider(
+                        value = (sliderPosition ?: effectivePosition).toFloat(),
+                        valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
+                        onValueChange = {
+                            if (!isListenTogetherGuest) {
+                                sliderPosition = it.toLong()
+                            }
+                        },
+                        onValueChangeFinished = {
+                            if (!isListenTogetherGuest) {
+                                sliderPosition?.let {
+                                    if (isCasting) {
+                                        castHandler?.seekTo(it)
+                                        lastManualSeekTime = System.currentTimeMillis()
+                                    } else {
+                                        playerConnection.player.seekTo(it)
+                                    }
+                                    position = it
+                                }
+                                sliderPosition = null
+                            }
+                        },
+                        enabled = !isListenTogetherGuest,
+                        colors = PlayerSliderColors.getSliderColors(textButtonColor, playerBackground, useDarkTheme),
+                        modifier = Modifier.padding(horizontal = PlayerHorizontalPadding),
+                        audioLevel = audioLevel,
+                        isPlaying = effectiveIsPlaying,
                     )
                 }
             }
